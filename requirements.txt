@@ -1,0 +1,18 @@
+# FastAPI Controller - Python 3.9 Compatible
+# Production requirements
+
+# Core
+fastapi==0.115.0
+uvicorn==0.32.0
+pydantic==2.9.2
+apscheduler==3.10.4
+
+# pinned dependencies (python 3.9 compatible)
+annotated-types==0.7.0
+anyio==4.6.2
+click==8.1.7
+h11==0.14.0
+idna==3.10
+pydantic-core==2.18.2
+starlette==0.38.6
+typing-extensions==4.12.2
