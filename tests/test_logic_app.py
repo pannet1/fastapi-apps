@@ -63,3 +63,24 @@ class TestLogicApp:
         data = response.json()
         assert data['status'] == 'paused'
         assert data['reason'] == 'test'
+
+    @pytest.mark.asyncio
+    async def test_new_session_on_start(self, client):
+        """Verify new session is created on every start."""
+        # Start first time
+        response1 = await client.post('/api/logic/start')
+        data1 = response1.json()
+        session1 = data1['startup_data']['session_id']
+        assert session1 is not None
+        
+        # Stop
+        await client.post('/api/logic/stop')
+        
+        # Start second time
+        response2 = await client.post('/api/logic/start')
+        data2 = response2.json()
+        session2 = data2['startup_data']['session_id']
+        assert session2 is not None
+        
+        # Sessions should be different
+        assert session1 != session2, "Each start should generate a new session"

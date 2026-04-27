@@ -159,6 +159,7 @@ class LogicStatus(BaseModel):
     running: bool
     started_at: Optional[str] = None
     account_id: Optional[str] = None
+    session_id: Optional[str] = None  # Broker session ID (changes on every start)
     active_positions: int = 0
     open_orders: int = 0
 
@@ -249,9 +250,33 @@ async def background_processor(app_data: dict, data_queue: asyncio.Queue):
     app_data.clear()
 
 
+def login() -> tuple[str, str]:
+    """Simulate broker login - generates new session on every call.
+    
+    In real implementation, this would:
+    1. Connect to broker API
+    2. Authenticate with credentials
+    3. Get access token and refresh token
+    4. Return session ID and token
+    
+    Returns:
+        tuple: (session_id, session_token)
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_id = f"SES_{timestamp}_{str(uuid.uuid4())[:6].upper()}"
+    session_token = str(uuid.uuid4()).replace('-', '')[:32]
+    
+    logger.info(f"[BROKER] New session created: {session_id}")
+    return session_id, session_token
+
+
 async def start_logic():
     if _logic_state.is_running():
         return {"status": "already_running", "message": "Logic app is already running"}
+    
+    # Login to broker - generates new session token on every start
+    session_id, session_token = login()
+    logger.info(f"New broker session: {session_id}")
     
     # Startup data
     _logic_state.startup_data = {
@@ -262,6 +287,10 @@ async def start_logic():
         "max_position_size": 100.0,
         "max_loss_per_trade": 1000.0,
         "stop_loss_pct": 0.5,
+        # Broker session info
+        "session_id": session_id,
+        "session_token": session_token,
+        "logged_in_at": datetime.now().isoformat(),
     }
     
     # Application data
@@ -353,6 +382,7 @@ def get_logic_status():
         running=_logic_state.is_running(),
         started_at=_logic_state.started_at.isoformat() if _logic_state.started_at else None,
         account_id=_logic_state.startup_data.get("account_id") if _logic_state.startup_data else None,
+        session_id=_logic_state.startup_data.get("session_id") if _logic_state.startup_data else None,
         active_positions=len(app_data["positions"]) if app_data else 0,
         open_orders=len(app_data["orders"]) if app_data else 0,
     )
