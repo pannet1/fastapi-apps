@@ -176,15 +176,243 @@ class LogicData(BaseModel):
 # Lifecycle Hooks
 # ============================================================
 
-def on_start(startup_data: dict):
-    """Called when logic app starts."""
-    print(f"[LIFECYCLE] on_start called with: {startup_data.get('account_id')}")
-    pass
+def on_start(startup_data: dict, app_data: dict):
+    """Called when logic app starts. Performs all initialization steps.
+    
+    startup_data: Contains config (account_id, session_id, etc.)
+    app_data: Will contain runtime state (cleared on stop)
+    """
+    account_id = startup_data.get('account_id', 'UNKNOWN')
+    session_id = startup_data.get('session_id', 'UNKNOWN')
+    
+    logger.info(f"[LIFECYCLE] ============================================")
+    logger.info(f"[LIFECYCLE] Starting Initialization for account: {account_id}")
+    logger.info(f"[LIFECYCLE] Session: {session_id}")
+    
+    # Step 1: Validate broker connection
+    logger.info(f"[LIFECYCLE:1/12] Validating broker connection...")
+    _validate_broker_connection(session_id)
+    
+    # Step 2: Authenticate and get access token
+    logger.info(f"[LIFECYCLE:2/12] Authenticating with broker API...")
+    access_token = _authenticate_with_broker(session_id)
+    app_data['access_token'] = access_token  # Runtime - in app_data
+    
+    # Step 3: Fetch account details
+    logger.info(f"[LIFECYCLE:3/12] Fetching account details...")
+    account_details = _fetch_account_details(access_token, account_id)
+    startup_data['account_details'] = account_details  # Config - in startup_data
+    
+    # Step 4: Validate subscription and margins
+    logger.info(f"[LIFECYCLE:4/12] Validating subscription and margins...")
+    margin_info = _validate_subscription(access_token)
+    app_data['margin_info'] = margin_info  # Runtime - in app_data
+    
+    # Step 5: Fetch tradable symbols
+    logger.info(f"[LIFECYCLE:5/12] Fetching tradable symbols...")
+    symbols = _fetch_tradable_symbols(access_token, startup_data.get('symbols', []))
+    app_data['symbols_data'] = symbols  # Runtime - in app_data
+    startup_data['symbols'] = [s['symbol'] for s in symbols]  # Keep strings in startup_data for websocket
+    
+    # Step 6: Fetch initial market data (LTP)
+    logger.info(f"[LIFECYCLE:6/12] Fetching initial market data...")
+    initial_prices = _fetch_initial_prices(access_token, symbols)
+    app_data['initial_prices'] = initial_prices  # Runtime - in app_data
+    
+    # Step 7: Initialize WebSocket connection
+    logger.info(f"[LIFECYCLE:7/12] Setting up WebSocket connection...")
+    ws_endpoint = _setup_websocket(access_token)
+    app_data['ws_endpoint'] = ws_endpoint  # Runtime - in app_data
+    
+    # Step 8: Load cached strategy state
+    logger.info(f"[LIFECYCLE:8/12] Loading cached strategy state...")
+    strategy_state = _load_strategy_state(startup_data)
+    app_data['strategy_state'] = strategy_state  # Runtime - in app_data
+    
+    # Step 9: Initialize trading strategies
+    logger.info(f"[LIFECYCLE:9/12] Initializing trading strategies...")
+    strategy_configs = _initialize_strategies(access_token, startup_data)
+    app_data['strategy_configs'] = strategy_configs  # Runtime - in app_data
+    
+    # Step 10: Sync open orders and positions
+    logger.info(f"[LIFECYCLE:10/12] Syncing open orders and positions...")
+    open_orders, positions = _sync_orders_and_positions(access_token)
+    app_data['synced_orders'] = open_orders  # Runtime - in app_data
+    app_data['synced_positions'] = positions  # Runtime - in app_data
+    
+    # Step 11: Load historical P&L data
+    logger.info(f"[LIFECYCLE:11/12] Loading historical P&L...")
+    historical_pnl = _load_historical_pnl(access_token)
+    app_data['historical_pnl'] = historical_pnl  # Runtime - in app_data
+    
+    # Step 12: Final health check
+    logger.info(f"[LIFECYCLE:12/12] Running health checks...")
+    health_status = _run_health_checks(app_data)
+    app_data['health_status'] = health_status  # Runtime - in app_data
+    
+    logger.info(f"[LIFECYCLE] ============================================")
+    logger.info(f"[LIFECYCLE] Initialization Complete!")
+    logger.info(f"[LIFECYCLE] Account: {account_id}, Symbols: {len(symbols)}, Strategies: {len(strategy_configs)}")
+    logger.info(f"[LIFECYCLE] Margin Available: {margin_info.get('available_margin', 'N/A')}")
+    logger.info(f"[LIFECYCLE] ============================================")
+
+
+def _validate_broker_connection(session_id: str) -> bool:
+    """Validate that broker API is reachable."""
+    logger.info(f"[BROKER] Validating connection for session: {session_id}")
+    # Simulate API check
+    import time
+    time.sleep(0.05)  # Simulate network latency
+    logger.info(f"[BROKER] Connection validated: OK")
+    return True
+
+
+def _authenticate_with_broker(session_id: str) -> str:
+    """Authenticate and get access token."""
+    import hashlib
+    token = hashlib.sha256(f"{session_id}_{uuid.uuid4()}".encode()).hexdigest()[:24]
+    logger.info(f"[BROKER] Authenticated, access token: {token[:8]}...")
+    return token
+
+
+def _fetch_account_details(access_token: str, account_id: str) -> dict:
+    """Fetch account details like name, email, broker info."""
+    details = {
+        "account_id": account_id,
+        "client_name": "Demo Trader",
+        "email": "trader@example.com",
+        "broker": "Finvasia",
+        "account_type": "COMMON",
+        "pan": "XXXXXXXXXX1234",
+    }
+    logger.info(f"[BROKER] Account details fetched: {details['client_name']}, {details['broker']}")
+    return details
+
+
+def _validate_subscription(access_token: str) -> dict:
+    """Validate subscription status and margin."""
+    margin = {
+        "available_margin": random.uniform(50000, 500000),
+        "used_margin": random.uniform(0, 100000),
+        "blocked_margin": random.uniform(0, 50000),
+        "day_margin": random.uniform(100000, 1000000),
+        "subscription_active": True,
+        "subscription_expiry": "2026-12-31",
+    }
+    logger.info(f"[BROKER] Margin available: ₹{margin['available_margin']:.2f}, Subscription: {margin['subscription_active']}")
+    return margin
+
+
+def _fetch_tradable_symbols(access_token: str, requested_symbols: list) -> list:
+    """Fetch list of tradable symbols with their details."""
+    symbols_with_data = []
+    for sym in requested_symbols:
+        symbols_with_data.append({
+            "symbol": sym,
+            "token": str(uuid.uuid4())[:10],
+            "exchange": "NSE",
+            "lot_size": random.choice([75, 100, 125, 250]),
+            "tick_size": 0.05,
+            "allowed": True,
+        })
+    logger.info(f"[BROKER] Fetched {len(symbols_with_data)} tradable symbols")
+    return symbols_with_data
+
+
+def _fetch_initial_prices(access_token: str, symbols: list) -> dict:
+    """Fetch last traded prices for all symbols."""
+    prices = {}
+    for sym in symbols:
+        prices[sym['symbol']] = {
+            "ltp": random.uniform(100, 5000),
+            "open": random.uniform(100, 5000),
+            "high": random.uniform(100, 5000),
+            "low": random.uniform(100, 5000),
+            "close": random.uniform(100, 5000),
+            "volume": random.randint(100000, 10000000),
+        }
+    logger.info(f"[BROKER] Fetched LTP for {len(prices)} symbols")
+    return prices
+
+
+def _setup_websocket(access_token: str) -> str:
+    """Setup and return WebSocket endpoint."""
+    ws_id = str(uuid.uuid4())[:8]
+    endpoint = f"wss://api.broker.com/stream/{ws_id}"
+    logger.info(f"[BROKER] WebSocket endpoint ready: {endpoint[:40]}...")
+    return endpoint
+
+
+def _load_strategy_state(startup_data: dict) -> dict:
+    """Load cached strategy state from previous session."""
+    state = {
+        "last_trade_time": datetime.now().isoformat(),
+        "trade_count": 0,
+        "last_symbol": None,
+        "indicators": {
+            "rsi": random.uniform(30, 70),
+            "macd": random.uniform(-5, 5),
+        },
+        "cache_valid": True,
+    }
+    logger.info(f"[STRATEGY] Loaded cached state, indicators: RSI={state['indicators']['rsi']:.2f}")
+    return state
+
+
+def _initialize_strategies(access_token: str, startup_data: dict) -> list:
+    """Initialize trading strategies with their parameters."""
+    strategies = []
+    for strat_name in startup_data.get('strategies', ['momentum', 'mean_reversion']):
+        strategies.append({
+            "name": strat_name,
+            "enabled": True,
+            "params": {
+                "lookback_period": random.randint(14, 30),
+                "threshold": random.uniform(0.01, 0.05),
+                "max_positions": random.randint(3, 10),
+            },
+            "status": "initialized",
+        })
+    logger.info(f"[STRATEGY] Initialized {len(strategies)} strategies: {[s['name'] for s in strategies]}")
+    return strategies
+
+
+def _sync_orders_and_positions(access_token: str) -> tuple:
+    """Sync open orders and positions from broker."""
+    orders = []  # Would fetch from broker
+    positions = []  # Would fetch from broker
+    logger.info(f"[BROKER] Synced {len(orders)} open orders, {len(positions)} positions")
+    return orders, positions
+
+
+def _load_historical_pnl(access_token: str) -> dict:
+    """Load historical P&L data."""
+    pnl = {
+        "today_pnl": random.uniform(-5000, 15000),
+        "week_pnl": random.uniform(-10000, 30000),
+        "month_pnl": random.uniform(-20000, 50000),
+    }
+    logger.info(f"[BROKER] Loaded historical P&L: Today={pnl['today_pnl']:.2f}")
+    return pnl
+
+
+def _run_health_checks(app_data: dict) -> dict:
+    """Run health checks on all systems."""
+    checks = {
+        "broker_connection": "healthy",
+        "websocket": "healthy",
+        "margin": "healthy",
+        "strategies": "healthy",
+        "symbols": "healthy",
+    }
+    all_healthy = all(v == "healthy" for v in checks.values())
+    logger.info(f"[HEALTH] All systems healthy: {all_healthy}")
+    return {"passed": all_healthy, "details": checks}
 
 
 def on_stop(app_data: dict):
     """Called when logic app stops."""
-    print(f"[LIFECYCLE] on_stop called")
+    logger.info(f"[LIFECYCLE] on_stop called - cleaning up {len(app_data.get('positions', {}))} positions")
     pass
 
 
@@ -293,7 +521,9 @@ async def start_logic():
         "logged_in_at": datetime.now().isoformat(),
     }
     
-    # Application data
+
+    
+    # Initialize app_data first (runtime state, cleared on stop)
     _logic_state.app_data = {
         "positions": {},
         "orders": [],
@@ -303,11 +533,38 @@ async def start_logic():
         "last_update": None,
     }
     
-    # Lifecycle hook
-    on_start(_logic_state.startup_data)
+    # Lifecycle hook (passes both startup_data and app_data)
+    on_start(_logic_state.startup_data, _logic_state.app_data)
+    
+    # Extract symbol strings for websocket (handle both strings and dicts)
+    raw_symbols = _logic_state.startup_data.get('symbols', [])
+    if raw_symbols and isinstance(raw_symbols[0], dict):
+        symbol_strings = [s['symbol'] for s in raw_symbols]
+    else:
+        symbol_strings = raw_symbols
+    
+    # Store initialization data in app_data (runtime state, not startup config)
+    _logic_state.app_data = {
+        "positions": {},
+        "orders": [],
+        "market_cache": {},
+        "total_pnl": 0.0,
+        "trade_count": 0,
+        "last_update": None,
+        # Runtime data from initialization
+        "access_token": _logic_state.startup_data.get('access_token'),
+        "account_details": _logic_state.startup_data.get('account_details'),
+        "margin_info": _logic_state.startup_data.get('margin_info'),
+        "initial_prices": _logic_state.startup_data.get('initial_prices'),
+        "ws_endpoint": _logic_state.startup_data.get('ws_endpoint'),
+        "strategy_state": _logic_state.startup_data.get('strategy_state'),
+        "strategy_configs": _logic_state.startup_data.get('strategy_configs'),
+        "historical_pnl": _logic_state.startup_data.get('historical_pnl'),
+        "health_status": _logic_state.startup_data.get('health_status'),
+    }
     
     # Websocket client
-    _logic_state.ws_client = FakeWebsocketClient(_logic_state.startup_data["symbols"])
+    _logic_state.ws_client = FakeWebsocketClient(symbol_strings)
     _logic_state.running = True
     _logic_state.started_at = datetime.now()
     
