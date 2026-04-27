@@ -8,11 +8,14 @@ Features:
 
 import asyncio
 import json
+import logging
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
@@ -128,9 +131,21 @@ class LogicState:
         self.startup_data: Optional[dict] = None
         self.app_data: Optional[dict] = None
         self.ws_client: Optional[FakeWebsocketClient] = None
+        self.paused = False
+        self.pause_until: Optional[datetime] = None
+        self.pause_reason: str = ""
     
     def is_running(self) -> bool:
         return self.running and self.background_task is not None and not self.background_task.done()
+    
+    def is_paused(self) -> bool:
+        if self.paused and self.pause_until:
+            if datetime.now() < self.pause_until:
+                return True
+            self.paused = False
+            self.pause_until = None
+            self.pause_reason = ""
+        return False
 
 
 _logic_state = LogicState()
@@ -230,8 +245,7 @@ async def background_processor(app_data: dict, data_queue: asyncio.Queue):
         except asyncio.CancelledError:
             break
         except Exception as e:
-            # Print the error instead of passing, so you aren't blind to actual logic bugs
-            print(f"Background logic error: {e}")
+            logger.error(f"Background logic error: {type(e).__name__}: {e}")
             
     app_data.clear()
 
@@ -318,6 +332,22 @@ async def stop_logic():
     return {"status": "stopped", "message": "Logic app stopped gracefully. Application data cleared."}
 
 
+async def pause_logic(reason: str = "manual", duration_seconds: int = 60):
+    """Pause logic app - stops it and prevents auto-restart for specified duration."""
+    if _logic_state.is_running():
+        await stop_logic()
+    
+    _logic_state.paused = True
+    _logic_state.pause_until = datetime.now() + timedelta(seconds=duration_seconds)
+    _logic_state.pause_reason = reason
+    
+    return {
+        "status": "paused",
+        "reason": reason,
+        "until": _logic_state.pause_until.isoformat(),
+    }
+
+
 def get_logic_status():
     app_data = _logic_state.app_data
     return LogicStatus(
@@ -364,5 +394,9 @@ def create_logic_router() -> APIRouter:
     @router.post("/stop")
     async def stop():
         return await stop_logic()
+    
+    @router.post("/pause")
+    async def pause(reason: str = "manual", duration: int = 60):
+        return await pause_logic(reason=reason, duration_seconds=duration)
     
     return router

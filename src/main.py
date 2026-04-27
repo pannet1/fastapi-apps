@@ -2,17 +2,23 @@
 
 Includes APScheduler for auto start/stop within scheduled hours.
 The logic app remains unaware of the schedule - only the controller manages it.
+
+Architecture:
+- Watchdog (main.py): Runs 24/7, manages logic app lifecycle
+- Logic app: Starts/stops based on schedule + user actions
 """
 
 import gc
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from src.logic_app import (
     create_logic_router,
@@ -21,6 +27,16 @@ from src.logic_app import (
     _logic_state,
     load_template,
 )
+
+
+# ============================================================
+# Template Loader with Header/Footer
+# ============================================================
+
+def load_page_template(name: str) -> str:
+    templates_dir = Path(__file__).parent.parent / 'templates'
+    template_path = templates_dir / f'{name}.html'
+    return template_path.read_text()
 
 # ============================================================
 # Schedule Configuration (in controller only)
@@ -32,23 +48,48 @@ class ScheduleConfig:
 
     def __init__(self):
         self.enabled = True
-        # Indian market hours: 9:14 AM to 3:31 PM
+        # Schedule: 9:14 AM to 11:59 PM
         self.start_hour = 9
         self.start_minute = 14
-        self.end_hour = 15
-        self.end_minute = 31
+        self.end_hour = 23
+        self.end_minute = 59
+        # Trading days (0=Monday, 4=Friday for Indian market)
+        self.trading_days = [0, 1, 2, 3, 4]
+        self.trading_day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
     def is_within_schedule(self) -> bool:
-        """Check if current time is within scheduled hours."""
         if not self.enabled:
             return True
 
+        if _logic_state.is_paused():
+            return False
+
         now = datetime.now()
+        if now.weekday() not in self.trading_days:
+            return False
+
         current_minutes = now.hour * 60 + now.minute
         start_minutes = self.start_hour * 60 + self.start_minute
         end_minutes = self.end_hour * 60 + self.end_minute
 
         return start_minutes <= current_minutes < end_minutes
+
+    def is_paused(self) -> bool:
+        """Check if logic is paused (user action)."""
+        return _logic_state.is_paused()
+
+    def pause_reason(self) -> str:
+        """Get current pause reason."""
+        if _logic_state.paused and _logic_state.pause_until:
+            remaining = (_logic_state.pause_until - datetime.now()).total_seconds()
+            if remaining > 0:
+                return f"{_logic_state.pause_reason} ({int(remaining)}s)"
+        return ""
+
+    def can_start(self) -> bool:
+        """Check if logic can be started."""
+        return self.is_within_schedule() and not _logic_state.is_running()
+
 
     def time_until_start(self) -> str:
         """Return time until schedule starts."""
@@ -102,13 +143,19 @@ scheduler = AsyncIOScheduler()
 
 async def scheduled_start():
     """Auto-start logic at scheduled time."""
-    if not _logic_state.is_running() and schedule_config.is_within_schedule():
+    if schedule_config.can_start():
         await start_logic()
 
 
 async def scheduled_stop():
-    """Auto-stop logic at scheduled end time."""
-    if _logic_state.is_running():
+    if _logic_state.is_running() and not schedule_config.is_within_schedule():
+        await stop_logic()
+
+
+async def watchdog_check():
+    if schedule_config.is_within_schedule() and not _logic_state.is_running():
+        await start_logic()
+    elif not schedule_config.is_within_schedule() and _logic_state.is_running():
         await stop_logic()
 
 
@@ -153,34 +200,18 @@ async def on_shutdown():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     await on_startup()
     
-    # Setup scheduler
     if schedule_config.enabled:
         scheduler.add_job(
-            scheduled_start,
-            trigger=CronTrigger(
-                hour=schedule_config.start_hour, minute=schedule_config.start_minute
-            ),
-            id="scheduled_start",
-        )
-        scheduler.add_job(
-            scheduled_stop,
-            trigger=CronTrigger(
-                hour=schedule_config.end_hour, minute=schedule_config.end_minute
-            ),
-            id="scheduled_stop",
+            watchdog_check,
+            trigger=IntervalTrigger(seconds=60),
+            id='watchdog_check',
         )
         scheduler.start()
 
-        # Check if should auto-stop on startup (outside schedule)
-        if _logic_state.is_running() and not schedule_config.is_within_schedule():
-            await stop_logic()
-
     yield
 
-    # Shutdown
     if scheduler.running:
         scheduler.shutdown()
     await on_shutdown()
@@ -201,16 +232,18 @@ app = FastAPI(
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Show controller UI when stopped, logic app UI when running."""
+    """Show sleeping page when stopped/paused, logic app when running."""
     if _logic_state.is_running() and schedule_config.is_within_schedule():
-        return HTMLResponse(load_template("logic"))
-    return HTMLResponse(load_template("controller"))
+        return HTMLResponse(load_page_template("logic"))
+    return HTMLResponse(load_page_template("sleeping"))
 
 
 @app.get("/logic", response_class=HTMLResponse)
 async def logic_page():
     """Dedicated logic app page."""
-    return HTMLResponse(load_template("logic"))
+    if _logic_state.is_running() and schedule_config.is_within_schedule():
+        return HTMLResponse(load_page_template("logic"))
+    return HTMLResponse(load_page_template("sleeping"))
 
 
 @app.get("/api/memory")
@@ -239,6 +272,10 @@ async def schedule_info():
         "time_until_start": schedule_config.time_until_start(),
         "time_until_end": schedule_config.time_until_end(),
         "running": _logic_state.is_running(),
+        "paused": schedule_config.is_paused(),
+        "pause_reason": schedule_config.pause_reason(),
+        "schedule_times": f"{schedule_config.start_hour:02d}:{schedule_config.start_minute:02d} - {schedule_config.end_hour:02d}:{schedule_config.end_minute:02d}",
+        "trading_days": schedule_config.trading_day_names,
     }
 
 
@@ -258,3 +295,16 @@ if __name__ == "__main__":
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+
+
+@app.get('/api/admin/logs')
+async def get_logs():
+    try:
+        log_path = Path(__file__).parent.parent / 'server.log'
+        if log_path.exists():
+            content = log_path.read_text()[-5000:]  # Last 5000 chars
+        else:
+            content = 'No server.log found'
+        return {'content': content, 'status': 'ok'}
+    except Exception as e:
+        return {'content': f'Error: {e}', 'status': 'error'}

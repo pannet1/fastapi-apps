@@ -6,6 +6,7 @@ fastapi==0.115.0
 uvicorn==0.32.0
 pydantic==2.9.2
 apscheduler==3.10.4
+nest-asyncio==1.6.0
 
 # pinned dependencies (python 3.9 compatible)
 annotated-types==0.7.0

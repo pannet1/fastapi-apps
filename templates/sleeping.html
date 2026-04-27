@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Trading Bot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #eaeaea; }
+    
+    /* Common Header */
+    .app-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .header-left { display: flex; align-items: center; gap: 0.5rem; }
+    .logo { font-size: 1.5rem; }
+    .title { font-size: 1.25rem; font-weight: 600; }
+    .header-right { display: flex; gap: 0.5rem; }
+    .icon-btn { background: rgba(255,255,255,0.1); border: none; padding: 0.5rem; border-radius: 8px; cursor: pointer; font-size: 1.2rem; transition: all 0.2s; }
+    .icon-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
+    
+    /* Common Body/Footer */
+    .app-body { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .app-footer { padding: 0.75rem 1.5rem; background: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.1); text-align: center; font-size: 0.75rem; color: #6b7280; }
+    .app-footer a { color: #6b7280; text-decoration: none; }
+    .app-footer a:hover { color: #9ca3af; }
+    
+    /* Sleeping Page Specific */
+    .container { text-align: center; padding: 2rem; max-width: 600px; width: 90%; }
+    .meme-icon { font-size: 5rem; margin-bottom: 1rem; animation: float 3s ease-in-out infinite; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+    .status { color: #9ca3af; margin-bottom: 1.5rem; font-size: 1.1rem; }
+    .quote { font-style: italic; color: #f59e0b; margin-bottom: 1.5rem; font-size: 1rem; min-height: 2rem; }
+    .countdown-box { background: rgba(0,0,0,0.3); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+    .countdown-label { font-size: 0.9rem; color: #9ca3af; margin-bottom: 0.5rem; }
+    .countdown-time { font-size: 2.5rem; font-weight: 700; color: #00d9ff; font-family: monospace; }
+    .countdown-sub { font-size: 0.9rem; color: #6b7280; margin-top: 0.5rem; }
+    .schedule-info { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
+    .info-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+    .info-row:last-child { border-bottom: none; }
+    .label { color: #9ca3af; }
+    .value { font-weight: 600; }
+    .trading-days { display: flex; gap: 0.5rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+    .day-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; background: rgba(255,255,255,0.1); }
+    .day-badge.active { background: rgba(16,185,129,0.3); color: #10b981; }
+    
+    /* Common Modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-content { background: rgba(30,30,50,0.95); border-radius: 16px; padding: 2rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .modal-title { font-size: 1.25rem; font-weight: 600; }
+    .modal-close { background: none; border: none; color: #9ca3af; font-size: 1.5rem; cursor: pointer; padding: 0.25rem; }
+    .modal-close:hover { color: white; }
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; margin-bottom: 0.5rem; color: #9ca3af; font-size: 0.875rem; }
+    .form-input { width: 100%; padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 1rem; }
+    .form-input:focus { outline: none; border-color: #3b82f6; }
+    .btn-primary { width: 100%; padding: 0.75rem; background: #3b82f6; border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+    .btn-primary:hover { background: #2563eb; }
+    .log-content { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 0.8rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <!-- Common Header -->
+  <header class='app-header'>
+    <div class='header-left'>
+      <span class='logo'>📈</span>
+      <span class='title'>Trading Bot</span>
+    </div>
+    <div class='header-right'>
+      <button class='icon-btn' onclick='openSettingsModal()' title='Settings'>⚙️</button>
+      <button class='icon-btn' onclick='openLogsModal()' title='Logs'>📋</button>
+    </div>
+  </header>
+
+  <!-- Sleeping Page Content -->
+  <div class='app-body' id='appBody'>
+    <div class='container'>
+      <div class='meme-icon' id='memeIcon'>😴</div>
+      <h1>Sleeping</h1>
+      <p class='status' id='statusText'>Waiting for market hours...</p>
+      <p class='quote' id='quoteText'>💭 Loading wisdom...</p>
+      
+      <div class='countdown-box'>
+        <div class='countdown-label'>⏰ Next market opens in</div>
+        <div class='countdown-time' id='countdownTime'>--:--:--</div>
+        <div class='countdown-sub' id='countdownSub'>Calculating...</div>
+      </div>
+      
+      <div class='schedule-info'>
+        <div class='info-row'>
+          <span class='label'>Schedule</span>
+          <span class='value' id='scheduleTimes'>—</span>
+        </div>
+        <div class='info-row'>
+          <span class='label'>Opens</span>
+          <span class='value' id='openTime'>—</span>
+        </div>
+        <div class='info-row'>
+          <span class='label'>Closes</span>
+          <span class='value' id='closeTime'>—</span>
+        </div>
+      </div>
+      <div class='trading-days' id='tradingDays'></div>
+    </div>
+  </div>
+
+  <!-- Common Footer -->
+  <footer class='app-footer'>
+    Made with ❤️ by <a href='https://ecomsense.in' target='_blank'>ecomsense.in</a>
+  </footer>
+
+  <!-- Settings Modal -->
+  <div id='settingsModal' class='modal-overlay'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <span class='modal-title'>⚙️ Settings</span>
+        <button class='modal-close' onclick='closeSettingsModal()'>×</button>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>API Key</label>
+        <input type='text' class='form-input' id='apiKey' placeholder='Enter API key...'>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>Max Position Size</label>
+        <input type='number' class='form-input' id='maxPosition' placeholder='100'>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>Stop Loss %</label>
+        <input type='number' class='form-input' id='stopLoss' placeholder='0.5'>
+      </div>
+      <button class='btn-primary' onclick='saveSettings()'>Save Settings</button>
+    </div>
+  </div>
+
+  <!-- Logs Modal -->
+  <div id='logsModal' class='modal-overlay'>
+    <div class='modal-content'>
+      <div class='modal-header'>
+        <span class='modal-title'>📋 Logs</span>
+        <button class='modal-close' onclick='closeLogsModal()'>×</button>
+      </div>
+      <div class='log-content' id='logContent'>Loading...</div>
+      <button class='btn-primary' onclick='refreshLogs()'>Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    /* === Fun Content === */
+    const memes = ['😴', '💤', '🥱', '😎', '🍃', '☕', '🌙', '🦥', '📊❌', '📈💤'];
+    const quotes = [
+      'The market waits for no one, but your coffee waits for you ☕',
+      'Sleep is just short-term volatility 📉😴',
+      'Even Warren Buffett takes naps 📈😴',
+      'Your trading bot is dreaming of green candles 📊',
+      'HODLing onto your sleep until market opens 🛏️',
+      'The best trades happen after a good rest 💪',
+      'Positions closed, brain open 🧠💤',
+      'Market closed, Gains accumulated, Sleep activated 🌙',
+      'Your algorithm is resting. Are you? 😴',
+      'Even bots need beauty sleep 💅📈'
+    ];
+    let memeIndex = 0;
+    let quoteIndex = Math.floor(Math.random() * quotes.length);
+    
+    function rotateFunContent() {
+      memeIndex = (memeIndex + 1) % memes.length;
+      quoteIndex = (quoteIndex + 1) % quotes.length;
+      document.getElementById('memeIcon').textContent = memes[memeIndex];
+      document.getElementById('quoteText').textContent = '💭 ' + quotes[quoteIndex];
+    }
+    
+    /* === Live Countdown === */
+    function updateCountdown(sched) {
+      const timeEl = document.getElementById('countdownTime');
+      const subEl = document.getElementById('countdownSub');
+      
+      if (sched.within_schedule) {
+        timeEl.textContent = 'MARKET OPEN!';
+        subEl.textContent = '🚀 Trading in progress';
+        return;
+      }
+      
+      // Calculate time until next market open
+      const now = new Date();
+      let nextOpen = new Date();
+      nextOpen.setHours(sched.start_hour || 9, sched.start_minute || 14, 0, 0);
+      
+      // If past today's open, move to tomorrow
+      if (now > nextOpen) {
+        nextOpen.setDate(nextOpen.getDate() + 1);
+      }
+      
+      // Skip weekends
+      while ([0, 6].includes(nextOpen.getDay())) {
+        nextOpen.setDate(nextOpen.getDate() + 1);
+      }
+      
+      const diff = nextOpen - now;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      timeEl.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      subEl.textContent = nextOpen.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+    
+    /* === Common Modal Functions === */
+    function openSettingsModal() { document.getElementById('settingsModal').style.display = 'flex'; }
+    function closeSettingsModal() { document.getElementById('settingsModal').style.display = 'none'; }
+    function openLogsModal() { document.getElementById('logsModal').style.display = 'flex'; refreshLogs(); }
+    function closeLogsModal() { document.getElementById('logsModal').style.display = 'none'; }
+    
+    async function refreshLogs() {
+      try {
+        const resp = await fetch('/api/admin/logs');
+        const data = await resp.json();
+        document.getElementById('logContent').textContent = data.content || 'No logs available';
+      } catch(e) {
+        document.getElementById('logContent').textContent = 'Error loading logs: ' + e.message;
+      }
+    }
+    
+    async function saveSettings() {
+      closeSettingsModal();
+      alert('Settings saved');
+    }
+    
+    /* === Page-specific: Update Status === */
+    async function updateStatus() {
+      try {
+        const [logicResp, schedResp] = await Promise.all([
+          fetch('/api/logic/status'),
+          fetch('/api/schedule')
+        ]);
+        const data = await logicResp.json();
+        const sched = await schedResp.json();
+        
+        if (data.running && sched.within_schedule) { window.location.href = '/logic'; return; }
+        
+        document.getElementById('scheduleTimes').textContent = sched.schedule_times || '—';
+        document.getElementById('openTime').textContent = sched.schedule_times.split(' - ')[0] || '—';
+        document.getElementById('closeTime').textContent = sched.schedule_times.split(' - ')[1] || '—';
+        
+        // Update countdown
+        updateCountdown(sched);
+        
+        // Update status text
+        const statusEl = document.getElementById('statusText');
+        if (sched.within_schedule) statusEl.textContent = '🚀 Market is open!';
+        else statusEl.textContent = '😴 Market is closed';
+        
+        if (sched.trading_days) {
+          const currentDay = new Date().toLocaleDateString('en-US', { weekday: 'short' }).substring(0, 3);
+          const daysEl = document.getElementById('tradingDays');
+          daysEl.innerHTML = sched.trading_days.map(d => '<span class=\"day-badge ' + (d === currentDay ? 'active' : '') + '\">' + d + '</span>').join('');
+        }
+      } catch(e) { console.error(e); }
+    }
+    
+    // Start fun content rotation
+    setInterval(rotateFunContent, 8000);
+    rotateFunContent();
+    
+    // Update status every 3s
+    setInterval(updateStatus, 3000);
+    updateStatus();
+  </script>
+</body>
+</html>
