@@ -19,12 +19,41 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+*.pyc
+*.pyo
 
 # Virtual environments
 .venv/
 venv/
 ENV/
 env/
+
+# Node modules
+node_modules/
+.npm
+.npmrc
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+coverage/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Linting/Type checking
+.ruff_cache/
+.mypy_cache/
+.eslintcache
 
 # IDE
 .idea/
@@ -40,23 +69,15 @@ Thumbs.db
 # Environment
 .env
 .env.local
+.env.*.local
 *.env
 
-# Data folder
+# Logs and data
 data/
-data/*
+logs/
+*.log
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# ruff
-.ruff_cache/
-
-# mypy
-.mypy_cache/
-
-# Byte-compiled / optimized / DLL files
-*.py[o]
-*.pyc
+# Temporary files
+*.tmp
+*.temp
+.cache/
