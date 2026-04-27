@@ -191,6 +191,164 @@ cp factory/fastapi_app.service ~/.config/systemd/user/
 systemctl --user enable --now fastapi_app.service
 ```
 
+## UI Requirements
+
+### CSS Variables (Shared)
+
+```css
+:root {
+  --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  --header-bg: rgba(0,0,0,0.3);
+  --card-bg: rgba(255,255,255,0.05);
+  --accent-green: #00ff88;
+  --accent-red: #ff4757;
+  --accent-blue: #00d9ff;
+  --text-muted: #6b7280;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-gradient);
+  color: #eaeaea;
+}
+
+.icon-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+.icon-btn:hover {
+  background: rgba(255,255,255,0.2);
+  transform: scale(1.05);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.countdown-time {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #00d9ff;
+  font-family: monospace;
+}
+```
+
+### Common Layout (All Pages)
+
+**Header:**
+```html
+<header class='app-header'>
+  <div class='header-left'>
+    <span class='logo'>📈</span>
+    <span class='title'>Trading Bot</span>
+  </div>
+  <div class='header-right'>
+    <button class='icon-btn' onclick='openSettingsModal()'>⚙️</button>
+    <button class='icon-btn' onclick='restartLogic()'>🔄</button> <!-- Logic page only -->
+    <button class='icon-btn' onclick='openLogsModal()'>📋</button>
+  </div>
+</header>
+```
+
+**Footer:**
+```html
+<footer class='app-footer'>
+  Made with ❤️ by <a href='https://ecomsense.in'>ecomsense.in</a>
+</footer>
+```
+
+### Sleeping Page (When Stopped/Outside Schedule)
+
+**Content:**
+- Rotating emoji memes (😴💤🥱😎☕🌙)
+- Funny trading quotes (rotating every 8s)
+- Live countdown to market open (HH:MM:SS)
+- Schedule info card (Opens/Closes)
+- Trading days badges (Mon-Fri, today highlighted)
+
+**No:** Status indicator, time in footer, Start/Stop button
+
+### Logic Page (When Running/Within Schedule)
+
+**Content:**
+- P&L card (₹X, green/red)
+- Trade count
+- Active positions
+- Account ID
+- Market data with prices/volumes
+
+**Header Buttons:**
+- ⚙️ Settings (opens modal, no restart)
+- 🔄 Restart (stop → start → reload)
+- 📋 Logs (opens modal)
+
+### Modals (Common)
+
+**Settings Modal:**
+```html
+<div id='settingsModal' class='modal-overlay'>
+  <div class='modal-content'>
+    <div class='modal-header'>
+      <span>⚙️ Settings</span>
+      <button onclick='closeSettingsModal()'>×</button>
+    </div>
+    <input id='apiKey' placeholder='API Key'>
+    <input id='maxPosition' placeholder='Max Position'>
+    <input id='stopLoss' placeholder='Stop Loss %'>
+    <button onclick='saveAndRestart()'>Save & Restart</button> <!-- Logic page -->
+    <button onclick='saveSettings()'>Save Settings</button> <!-- Sleeping page -->
+  </div>
+</div>
+```
+
+**Logs Modal:**
+```html
+<div id='logsModal' class='modal-overlay'>
+  <div class='modal-content'>
+    <div class='log-content' id='logContent'>Loading...</div>
+    <button onclick='refreshLogs()'>Refresh</button>
+  </div>
+</div>
+```
+
+### JavaScript Pattern
+
+```javascript
+// Modal functions (reuse across pages)
+function openSettingsModal() { ... }
+function closeSettingsModal() { ... }
+function openLogsModal() { ... }
+function closeLogsModal() { ... }
+async function refreshLogs() {
+  const resp = await fetch('/api/admin/logs');
+  document.getElementById('logContent').textContent = resp.content;
+}
+
+// Settings: Save only, no countdown
+async function saveSettings() {
+  closeSettingsModal();
+  await fetch('/api/logic/stop', {method:'POST'});
+}
+
+// Restart
+async function restartLogic() {
+  await fetch('/api/logic/stop', {method:'POST'});
+  await new Promise(r => setTimeout(r, 500));
+  await fetch('/api/logic/start', {method:'POST'});
+  location.reload();
+}
+```
+
 ## Milestones
 
 | Tag | Description |
