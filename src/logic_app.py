@@ -239,9 +239,8 @@ async def background_processor(app_data: dict, data_queue: asyncio.Queue):
                     
             app_data["total_pnl"] = sum(p["pnl"] for p in app_data["positions"].values())
             
-        except TimeoutError:
-            # Expected behavior if no data arrives within 0.5s. Just loop again.
-            logger.debug("Queue timeout - no data, looping")
+        except asyncio.TimeoutError:
+            pass  # Expected: no data in queue within 0.5s, loop again
         except asyncio.CancelledError:
             break
         except Exception as e:
