@@ -250,7 +250,7 @@ async def background_processor(app_data: dict, data_queue: asyncio.Queue):
     app_data.clear()
 
 
-def start_logic():
+async def start_logic():
     if _logic_state.is_running():
         return {"status": "already_running", "message": "Logic app is already running"}
     
@@ -389,7 +389,7 @@ def create_logic_router() -> APIRouter:
     
     @router.post("/start")
     async def start():
-        return start_logic()
+        return await start_logic()
     
     @router.post("/stop")
     async def stop():

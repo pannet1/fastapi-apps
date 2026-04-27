@@ -365,11 +365,11 @@ if __name__ == "__main__":
 @app.get('/api/admin/logs')
 async def get_logs():
     try:
-        log_path = Path(__file__).parent.parent / 'server.log'
+        log_path = Path(__file__).parent.parent / 'data' / 'log.txt'
         if log_path.exists():
             content = log_path.read_text()[-5000:]  # Last 5000 chars
         else:
-            content = 'No server.log found'
+            content = 'No logs found'
         return {'content': content, 'status': 'ok'}
     except Exception as e:
         return {'content': f'Error: {e}', 'status': 'error'}
