@@ -124,7 +124,7 @@ from src.logic_app import (
     stop_logic,
     load_template,
 )
-from src.state import _logic_state, get_logic_state
+from src.state import _logic_state, get_logic_state, LogicState
 
 
 # ============================================================
