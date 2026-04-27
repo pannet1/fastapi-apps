@@ -319,11 +319,24 @@ systemctl --user status fastapi_app.service
 journalctl --user -u fastapi_app.service -n 50
 ```
 
-**Fix:** Add to service file
-```ini
-[Service]
-ExecStartPre=/usr/bin/pkill -f "uvicorn" || true
+**Fix:** App has built-in PID lock file mechanism
+```python
+# Lock file: data/app.pid
+# Auto-created on startup, auto-removed on shutdown
+# Checks if another instance is running before starting
 ```
+
+**To test lock:**
+```bash
+# Start first
+.venv/bin/python -m uvicorn src.main:app --port 8000 &
+
+# Try second (should fail)
+.venv/bin/python -m uvicorn src.main:app --port 8001
+# Output: "Another instance is running (PID: X). Exiting."
+```
+
+**For testing:** Set `SKIP_PID_LOCK=1` environment variable
 
 ### HTTP Basic Auth Middleware
 

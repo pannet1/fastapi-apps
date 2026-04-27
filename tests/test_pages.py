@@ -1,6 +1,10 @@
 import pytest
+import os
 from httpx import AsyncClient, ASGITransport
 import sys
+
+# Skip PID lock for testing
+os.environ['SKIP_PID_LOCK'] = '1'
 sys.path.insert(0, 'src')
 
 from main import app

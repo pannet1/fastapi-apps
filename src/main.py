@@ -10,6 +10,8 @@ Architecture:
 
 import gc
 import logging
+import os
+import signal
 import sys
 from base64 import b64decode
 from contextlib import asynccontextmanager
@@ -38,6 +40,52 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# PID Lock File - Prevent Multiple Instances
+# ============================================================
+
+LOCK_FILE = Path(__file__).parent.parent / 'data' / 'app.pid'
+
+def check_pid_lock() -> bool:
+    """Check if another instance is running. Returns True if can proceed."""
+    if not LOCK_FILE.exists():
+        return True
+    
+    try:
+        old_pid = int(LOCK_FILE.read_text().strip())
+        # Check if process exists
+        try:
+            os.kill(old_pid, 0)  # Signal 0 just checks if process exists
+            logger.error(f"Another instance is running (PID: {old_pid}). Exiting.")
+            return False
+        except OSError:
+            # Process doesn't exist, stale lock file - can proceed
+            logger.info(f"Stale lock file found (PID: {old_pid}). Proceeding.")
+            return True
+    except (ValueError, IOError):
+        # Invalid lock file, can proceed
+        return True
+
+def acquire_pid_lock() -> None:
+    """Write current PID to lock file."""
+    LOCK_FILE.write_text(str(os.getpid()))
+    logger.info(f"PID lock acquired: {os.getpid()}")
+
+def release_pid_lock() -> None:
+    """Remove lock file on shutdown."""
+    if LOCK_FILE.exists():
+        try:
+            current_pid = int(LOCK_FILE.read_text().strip())
+            if current_pid == os.getpid():
+                LOCK_FILE.unlink()
+                logger.info("PID lock released")
+        except (ValueError, IOError):
+            pass
+
+# For testing: skip lock check if we're being imported
+# Set SKIP_PID_LOCK=1 to disable lock (for testing)
+_is_lock_enabled = os.environ.get('SKIP_PID_LOCK', '') != '1'
 
 # HTTP Basic Auth (set via environment for security)
 def get_auth_credentials() -> Optional[tuple[str, str]]:
@@ -245,11 +293,19 @@ async def on_startup():
 
 async def on_shutdown():
     """Called on server shutdown."""
-    pass
+    release_pid_lock()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Check PID lock when server starts (skip for testing)
+    global _is_lock_enabled
+    if _is_lock_enabled:
+        if not check_pid_lock():
+            logger.error("Another instance is running. Exiting.")
+            sys.exit(1)
+        acquire_pid_lock()
+    
     await on_startup()
     
     if schedule_config.enabled:
