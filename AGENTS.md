@@ -203,3 +203,65 @@ fastapi-apps/
 - **Pause duration:** 60 seconds
 - **Server port:** 8000
 - **Single uvicorn:** Verified
+
+## Key Implementation Patterns
+
+### 1. Router Prefix Rule
+**DO:** Add prefix only in main app, not in router definition
+```python
+# logic_app.py
+router = APIRouter(tags=["logic"])  # No prefix!
+
+# main.py
+app.include_router(logic_router, prefix="/api/logic")  # Prefix here
+```
+**DON'T:** Double prefix causes `/api/logic/logic/status`
+
+### 2. Background Task with Queue
+**DO:** Use `asyncio.wait_for` with timeout
+```python
+async def background_processor(app_data, data_queue):
+    while _logic_state.running:
+        try:
+            data = await asyncio.wait_for(data_queue.get(), timeout=0.5)
+            # Process data...
+        except TimeoutError:
+            pass  # Expected: no data in queue, loop again
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Background logic error: {e}")
+```
+**DON'T:** Use `data_queue.empty()` before get - causes issues
+
+### 3. Graceful Shutdown Sequence
+```python
+async def stop_logic():
+    _logic_state.running = False
+    if _logic_state.ws_client:
+        await _logic_state.ws_client.disconnect()
+    if _logic_state.app_data:
+        _logic_state.app_data.clear()  # Frees memory
+    if _logic_state.background_task:
+        _logic_state.background_task.cancel()
+        try:
+            await _logic_state.background_task
+        except asyncio.CancelledError:
+            pass
+```
+
+### 4. Data Models
+**Use plain dict** for high-frequency data (orders, positions) - faster than Pydantic
+```python
+order = {
+    "id": str(uuid.uuid4())[:8].upper(),
+    "symbol": symbol,
+    "side": side,
+    ...
+}
+app_data["orders"].append(order)
+```
+
+### 5. State Management
+- `startup_data`: Initialized at start, preserved (API keys, config)
+- `app_data`: Created at start, cleared on stop (positions, orders, cache)

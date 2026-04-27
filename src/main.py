@@ -9,6 +9,7 @@ Architecture:
 """
 
 import gc
+import logging
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -19,6 +20,22 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+
+# Configure logging
+log_dir = Path(__file__).parent.parent / 'data'
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / 'log.txt'
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 from src.logic_app import (
     create_logic_router,

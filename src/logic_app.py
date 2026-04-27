@@ -241,7 +241,7 @@ async def background_processor(app_data: dict, data_queue: asyncio.Queue):
             
         except TimeoutError:
             # Expected behavior if no data arrives within 0.5s. Just loop again.
-            pass
+            logger.debug("Queue timeout - no data, looping")
         except asyncio.CancelledError:
             break
         except Exception as e:

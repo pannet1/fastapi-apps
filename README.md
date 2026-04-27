@@ -1,87 +1,125 @@
-# FastAPI Controller App
+# FastAPI Watchdog App
 
-A FastAPI application that controls a runnable logic component with start/stop capability. The logic runs as a background task and can be toggled from a web UI.
+A FastAPI application with APScheduler watchdog that manages a trading logic component with start/stop capability and market hours scheduling.
 
-## What It Does
+## Features
 
-- **Main App** (`main.py`) - Serves a web UI with Start/Stop button
-- **Logic App** (`logic_app.py`) - Runnable component that starts/stops independently
-
-The two apps appear as one unified application to the end user.
+- **Scheduled Auto-Start/Stop** - Logic runs only during configured market hours (Mon-Fri, 09:14 - 23:59)
+- **Watchdog Service** - APScheduler checks every 60s, auto-manages logic lifecycle
+- **Web UI** - Trading dashboard when running, sleeping page when stopped
+- **Manual Override** - Restart button available anytime
+- **Systemd Integration** - Runs as user service, survives reboots
 
 ## Quick Start
 
 ```bash
-# Create virtual environment
+# Clone and setup
+cd fastapi-apps
 python3 -m venv .venv
-
-# Activate
 source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run
-python -m uvicorn main:app --port 8000
+# Run locally (for testing)
+.venv/bin/python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
 ```
 
-Then open **http://localhost:8000** in your browser.
+Open **http://127.0.0.1:8000** in your browser.
 
-## Features
+## Production Deployment
 
-- **Web UI** - Start/Stop button toggles the logic app
-- **API Endpoints** - Programmatic control
-- **State Management** - Startup data preserved, app data cleared on stop
-- **Graceful Shutdown** - Background task properly cancelled
+```bash
+# Install service (one-time)
+mkdir -p ~/.config/systemd/user
+cp factory/fastapi_app.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable fastapi_app.service
+
+# Start service
+systemctl --user start fastapi_app.service
+
+# View logs
+journalctl --user -u fastapi_app.service -f
+```
 
 ## Architecture
 
 ```
-localhost:8000
-├── /                  → Web UI (Controller or Logic app)
-├── /api/logic/status  → Get running state
-├── /api/logic/data    → Get app data (only when running)
-├── /api/logic/start   → Start logic app
-├── /api/logic/stop    → Stop logic app
-└── /api/memory       → Memory usage info
+┌─────────────────────────────────────────────┐
+│           WATCHDOG (APScheduler)            │
+│  - Runs 24/7                                │
+│  - Checks every 60s                         │
+│  - Auto start/stop based on schedule        │
+└─────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────┐
+│              LOGIC APP                       │
+│  - Starts only when watchdog allows          │
+│  - Runs trading logic                        │
+│  - Stops gracefully when triggered           │
+└─────────────────────────────────────────────┘
 ```
 
-## Use Cases
+## API Endpoints
 
-- Trading bots that need scheduled start/stop
-- Background workers triggered on demand
-- Batch jobs that run intermittently
-- Any app that should run independently of the main server
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Main page (sleeping or logic) |
+| `/logic` | GET | Trading dashboard |
+| `/api/schedule` | GET | Schedule info |
+| `/api/logic/status` | GET | Logic running state |
+| `/api/logic/start` | POST | Start logic |
+| `/api/logic/stop` | POST | Stop logic |
+| `/api/logic/data` | GET | Trading data (when running) |
+| `/api/admin/logs` | GET | Application logs |
 
-## Files
+## Configuration
 
-```
-main.py          # Main controller app
-logic_app.py    # Logic component (starts/stops)
-requirements.txt
-```
+Edit `src/main.py` to change schedule:
 
-## API Examples
-
-```bash
-# Check status
-curl http://127.0.0.1:8000/api/logic/status
-
-# Start logic
-curl -X POST http://127.0.0.1:8000/api/logic/start
-
-# Get data (when running)
-curl http://127.0.0.1:8000/api/logic/data
-
-# Stop logic
-curl -X POST http://127.0.0.1:8000/api/logic/stop
+```python
+self.start_hour = 9
+self.start_minute = 14
+self.end_hour = 23
+self.end_minute = 59
+self.trading_days = [0, 1, 2, 3, 4]  # Mon-Fri
 ```
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - FastAPI
 - Uvicorn
+- APScheduler
 - Pydantic
 
-Install with: `pip install -r requirements.txt`
+Install: `pip install -r requirements.txt`
+
+## Files
+
+```
+├── src/
+│   ├── main.py          # Watchdog + controller
+│   └── logic_app.py     # Trading logic component
+├── templates/
+│   ├── sleeping.html    # Sleep page (when stopped)
+│   └── logic.html       # Trading dashboard (when running)
+├── factory/
+│   └── fastapi_app.service  # Systemd template
+├── scripts/             # Utility scripts
+├── data/                # Log files (gitignored)
+├── requirements.txt
+└── AGENTS.md            # Development instructions
+```
+
+## Logs
+
+Application logs are written to `data/log.txt`.
+
+View: `tail -f data/log.txt`
+
+## License
+
+MIT
