@@ -11,12 +11,14 @@ Architecture:
 import gc
 import logging
 import sys
+from base64 import b64decode
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -36,6 +38,37 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# HTTP Basic Auth (set via environment for security)
+def get_auth_credentials() -> Optional[tuple[str, str]]:
+    """Get credentials from environment. Returns (username, password) or None."""
+    import os
+    auth = os.environ.get('HTTP_AUTH', '')
+    if not auth:
+        return None
+    try:
+        username, password = auth.split(':', 1)
+        return (username, password)
+    except ValueError:
+        return None
+
+def verify_basic_auth(request) -> bool:
+    """Verify Basic Auth header. Returns True if authenticated or auth disabled."""
+    credentials = get_auth_credentials()
+    if credentials is None:
+        return True  # Auth disabled
+    
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Basic '):
+        return False
+    
+    try:
+        encoded = auth_header[6:]
+        decoded = b64decode(encoded).decode('utf-8')
+        provided_user, provided_pass = decoded.split(':', 1)
+        return provided_user == credentials[0] and provided_pass == credentials[1]
+    except Exception:
+        return False
 
 from src.logic_app import (
     create_logic_router,
@@ -240,6 +273,21 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+# ============================================================
+# HTTP Basic Auth Middleware
+# ============================================================
+
+@app.middleware('http')
+async def auth_middleware(request: Request, call_next):
+    if not verify_basic_auth(request):
+        return Response(
+            content='Unauthorized',
+            status_code=401,
+            headers={'WWW-Authenticate': 'Basic realm="Restricted"'}
+        )
+    return await call_next(request)
 
 
 # ============================================================

@@ -9,23 +9,47 @@ A FastAPI application with APScheduler watchdog that manages a trading logic com
 - **Web UI** - Trading dashboard when running, sleeping page when stopped
 - **Manual Override** - Restart button available anytime
 - **Systemd Integration** - Runs as user service, survives reboots
+- **HTTP Basic Auth** - Optional authentication via environment variable
 
 ## Quick Start
 
 ```bash
-# Clone and setup
-cd fastapi-apps
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Setup
+uv sync --python 3.10
 
 # Run locally (for testing)
-.venv/bin/python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
+uv run python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
+
+# Run tests
+uv run pytest tests/ -v
 ```
 
 Open **http://127.0.0.1:8000** in your browser.
+
+## Local Dev with Nginx (Production Simulation)
+
+```bash
+# Terminal 1: Run app on 8000
+uv run python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
+
+# Terminal 2: Run nginx on 8080 (proxy to 8000)
+sudo nginx -c /path/to/factory/nginx-dev.conf
+```
+
+Now access via **http://localhost:8080** (simulates production proxy).
+
+## HTTP Basic Auth (Optional)
+
+Enable authentication by setting environment variable:
+
+```bash
+# Enable auth
+HTTP_AUTH='username:password' uv run python -m uvicorn src.main:app --port 8000
+
+# With systemd
+# Add to ~/.config/systemd/user/fastapi_app.service:
+# Environment=HTTP_AUTH=username:password
+```
 
 ## Production Deployment
 
@@ -90,12 +114,9 @@ self.trading_days = [0, 1, 2, 3, 4]  # Mon-Fri
 ## Requirements
 
 - Python 3.10+
-- FastAPI
-- Uvicorn
-- APScheduler
-- Pydantic
+- uv (package manager)
 
-Install: `pip install -r requirements.txt`
+Install: `uv sync --python 3.10`
 
 ## Files
 
@@ -107,10 +128,12 @@ Install: `pip install -r requirements.txt`
 │   ├── sleeping.html    # Sleep page (when stopped)
 │   └── logic.html       # Trading dashboard (when running)
 ├── factory/
-│   └── fastapi_app.service  # Systemd template
+│   ├── fastapi_app.service  # Systemd template
+│   └── nginx-dev.conf       # Nginx proxy config (dev)
+├── tests/               # pytest tests
 ├── scripts/             # Utility scripts
 ├── data/                # Log files (gitignored)
-├── requirements.txt
+├── pyproject.toml
 └── AGENTS.md            # Development instructions
 ```
 
