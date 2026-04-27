@@ -147,11 +147,15 @@ fastapi-apps/
 │   ├── main.py           # Watchdog app (APScheduler, routes)
 │   └── logic_app.py      # Logic app (start/stop, state)
 ├── templates/
-│   ├── sleeping.html     # Main page (settings, logs, schedule info)
+│   ├── sleeping.html     # Sleep page (countdown, memes, schedule)
 │   └── logic.html        # Trading page (P&L, positions, market data)
-├── requirements.txt
-├── AGENTS.md             # This file
-└── server.log            # Application logs
+├── factory/
+│   ├── fastapi_app.service   # Systemd service template
+│   └── nginx-dev.conf        # Nginx proxy config (dev)
+├── tests/                # pytest tests
+├── data/                 # Log files (gitignored)
+├── pyproject.toml        # Dependencies (uv)
+└── AGENTS.md             # This file
 ```
 
 ## Key Endpoints
@@ -167,34 +171,6 @@ fastapi-apps/
 | `/api/logic/pause` | POST | Trigger pause (stops logic, prevents auto-start) |
 | `/api/admin/logs` | GET | Get server logs |
 | `/api/memory` | GET | Memory usage info |
-
-## Pause Mechanism
-
-**Trigger:** User clicks Settings or Save button
-
-**Effect:**
-1. Logic app stops gracefully
-2. `_logic_state.paused = True`
-3. `_logic_state.pause_until = datetime.now() + timedelta(seconds=60)`
-4. `is_within_schedule()` returns `False` (because paused)
-5. Watchdog does NOT restart logic during pause
-
-**After countdown:**
-1. `is_paused()` returns `False`
-2. `is_within_schedule()` returns `True` (if within market hours)
-3. Watchdog starts logic
-
-## Testing Checklist
-
-- [ ] Only ONE uvicorn process: `ps aux | grep uvicorn | grep -v grep | wc -l`
-- [ ] Schedule shows correct times: `curl -s /api/schedule`
-- [ ] Start logic manually: `curl -X POST /api/logic/start`
-- [ ] Stop logic: `curl -X POST /api/logic/stop`
-- [ ] Pause triggers countdown: `curl -X POST '/api/logic/pause?reason=settings&duration=10'`
-- [ ] After pause, watchdog auto-starts: wait 70s, check `/api/logic/status`
-- [ ] Settings button opens modal
-- [ ] Logs button opens modal
-- [ ] Browser shows correct page based on state
 
 ## Current State (As of 2026-04-27)
 
@@ -265,3 +241,112 @@ app_data["orders"].append(order)
 ### 5. State Management
 - `startup_data`: Initialized at start, preserved (API keys, config)
 - `app_data`: Created at start, cleared on stop (positions, orders, cache)
+
+## Common Pitfalls & Debugging
+
+### Async/Await Bugs
+
+**Symptom:** `TypeError: object dict can't be used in 'await' expression`
+
+**Cause:** Function is sync but called with `await`
+
+**Fix:** Make function async
+```python
+# Wrong
+def start_logic():
+    return {"status": "started", ...}
+
+# Correct
+async def start_logic():
+    return {"status": "started", ...}
+```
+
+### asyncio.TimeoutError vs built-in TimeoutError
+
+**Symptom:** Spurious `Background logic error: TimeoutError:` every 0.5s
+
+**Cause:** `asyncio.wait_for()` raises `asyncio.TimeoutError`, NOT `builtins.TimeoutError`
+
+**Fix:**
+```python
+# Wrong
+except TimeoutError:
+    pass
+
+# Correct
+except asyncio.TimeoutError:
+    pass
+```
+
+### Clear Pycache After Code Changes
+
+**Symptom:** Changes don't take effect, old errors persist
+
+**Fix:**
+```bash
+find . -name '__pycache__' -exec rm -rf {} +
+find . -name '*.pyc' -delete
+```
+
+### Log File Path Issues
+
+**Symptom:** Logs show "No server.log found" even though logs exist
+
+**Cause:** Hardcoded path to wrong file
+
+**Fix:** Use dynamic path relative to project root
+```python
+# Wrong
+log_path = Path(__file__).parent.parent / 'server.log'
+
+# Correct
+log_path = Path(__file__).parent.parent / 'data' / 'log.txt'
+```
+
+### systemd Multi-Instance Issue
+
+**Symptom:** Multiple uvicorn processes running
+
+**Causes:**
+1. Service crashes and systemd restarts it
+2. Manual start while service is already running
+3. Missing lock mechanism
+
+**Debug:**
+```bash
+ps aux | grep uvicorn | grep -v grep
+systemctl --user status fastapi_app.service
+journalctl --user -u fastapi_app.service -n 50
+```
+
+**Fix:** Add to service file
+```ini
+[Service]
+ExecStartPre=/usr/bin/pkill -f "uvicorn" || true
+```
+
+### HTTP Basic Auth Middleware
+
+**Setup:** Set via environment variable
+```bash
+export HTTP_AUTH='username:password'
+```
+
+**Check:**
+```bash
+# Without auth (401)
+curl http://127.0.0.1:8000/
+
+# With auth (200)
+curl -u username:password http://127.0.0.1:8000/
+```
+
+### Testing Checklist
+
+- [ ] Only ONE uvicorn process: `ps aux | grep uvicorn | grep -v grep | wc -l`
+- [ ] Schedule shows correct times: `curl -s /api/schedule`
+- [ ] Start logic manually: `curl -X POST /api/logic/start`
+- [ ] Stop logic: `curl -X POST /api/logic/stop`
+- [ ] Logs endpoint works: `curl -s /api/admin/logs`
+- [ ] Auth works when enabled: `curl -u user:pass /`
+- [ ] No spurious errors in logs after 10+ seconds
