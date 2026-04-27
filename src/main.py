@@ -122,9 +122,9 @@ from src.logic_app import (
     create_logic_router,
     start_logic,
     stop_logic,
-    _logic_state,
     load_template,
 )
+from src.state import _logic_state, get_logic_state
 
 
 # ============================================================
@@ -298,6 +298,9 @@ async def on_shutdown():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Expose logic state via app.state for request access
+    app.state.logic = _logic_state
+    
     # Check PID lock when server starts (skip for testing)
     global _is_lock_enabled
     if _is_lock_enabled:
@@ -334,6 +337,14 @@ app = FastAPI(
 # ============================================================
 # HTTP Basic Auth Middleware
 # ============================================================
+
+# Dependency to get logic state from app.state (for routes)
+from fastapi import Depends
+
+def get_logic_state_from_request(request: Request) -> LogicState:
+    """Get logic state from request.app.state."""
+    return request.app.state.logic
+
 
 @app.middleware('http')
 async def auth_middleware(request: Request, call_next):

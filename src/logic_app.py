@@ -120,35 +120,10 @@ class FakeWebsocketClient:
 
 
 # ============================================================
-# Application State
+# Application State (imported from state.py)
 # ============================================================
 
-class LogicState:
-    def __init__(self):
-        self.running = False
-        self.background_task: Optional[asyncio.Task] = None
-        self.started_at: Optional[datetime] = None
-        self.startup_data: Optional[dict] = None
-        self.app_data: Optional[dict] = None
-        self.ws_client: Optional[FakeWebsocketClient] = None
-        self.paused = False
-        self.pause_until: Optional[datetime] = None
-        self.pause_reason: str = ""
-    
-    def is_running(self) -> bool:
-        return self.running and self.background_task is not None and not self.background_task.done()
-    
-    def is_paused(self) -> bool:
-        if self.paused and self.pause_until:
-            if datetime.now() < self.pause_until:
-                return True
-            self.paused = False
-            self.pause_until = None
-            self.pause_reason = ""
-        return False
-
-
-_logic_state = LogicState()
+from src.state import LogicState, _logic_state, get_logic_state
 
 
 # ============================================================
