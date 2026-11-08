@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header-compact">
+    <h3 class="title-small">📦 Batches ({{ batches|length }})</h3>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">ID</th>
+                <th style="width: 22%;">Supplier</th>
+                <th style="width: 40%;">Description</th>
+                <th style="width: 15%;">Date</th>
+                <th style="width: 15%;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="entry-row">
+                <form action="/create-batch" method="post">
+                    <td><small>NEW</small></td>
+                    <td><input type="text" name="supplier" class="table-input" placeholder="Supplier..." required></td>
+                    <td><input type="text" name="desc" class="table-input" placeholder="Description..." required></td>
+                    <td><input type="date" name="date_str" class="table-input" value="{{ current_date }}" required></td>
+                    <td>
+                        <button type="submit" class="link-button-primary">
+                            + Create
+                        </button>
+                    </td>
+                </form>
+            </tr>
+
+            {% for b in batches %}
+            <tr>
+                <td><strong>{{ b.id }}</strong></td>
+                <td>{{ b.supplier_name }}</td>
+                <td>{{ b.description }}</td>
+                <td>{{ b.date }}</td>
+                <td>
+                    <a href="/add-items/{{ b.id }}" class="action-link">
+                        Add Items →
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header-compact">
+    <h3 class="title-small">💻 Global Inventory ({{ items|length }})</h3>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">ID</th>
+                <th style="width: 25%;">Brand/Model</th>
+                <th style="width: 15%;">Serial</th>
+                <th style="width: 12%;">Batch</th>
+                <th style="width: 15%;">Selling Price</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 10%;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="text-muted">#{{ item.inventory_id }}</td>
+                <td><strong>{{ item.brand }}</strong> {{ item.model }}</td>
+                <td><code>{{ item.serial }}</code></td>
+                <td>
+                    <a href="/add-items/{{ item.batch_id }}" class="subtle-link">
+                        #{{ item.batch_id }}
+                    </a>
+                </td>
+                <td class="price-text">₹{{ item.selling_price or '0.00' }}</td>
+                <td>
+                    <span class="badge status-{{ item.status.lower() }}">
+                        {{ item.status }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/edit-item/{{ item.inventory_id }}" class="action-link-blue">
+                        Edit →
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

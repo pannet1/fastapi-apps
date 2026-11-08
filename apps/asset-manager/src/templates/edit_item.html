@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header-compact">
+    <h3 class="title-small">{{ item.brand }} {{ item.model }}: {{ item.serial }} ({{ item.batch_id }})</h3>
+
+    <form action="/update-item" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="item_id" value="{{ item.inventory_id }}">
+
+        <div class="dashboard-grid">
+            <section class="card card-yellow">
+                <h4 class="section-title">Technical Details</h4>
+
+                <label class="field-label">Brand</label>
+                <input type="text" name="brand" value="{{ item.brand }}" class="table-input border-bottom" required>
+
+                <label class="field-label">Model</label>
+                <input type="text" name="model" value="{{ item.model }}" class="table-input border-bottom" required>
+
+                <label class="field-label">Serial Number</label>
+                <input type="text" name="serial" value="{{ item.serial }}" class="table-input border-bottom" required>
+
+                <label class="field-label">Status</label>
+                <select name="status" class="select-input">
+                    <option value="In-Stock" {% if item.status == 'In-Stock' %}selected{% endif %}>In-Stock</option>
+                    <option value="Servicing" {% if item.status == 'Servicing' %}selected{% endif %}>Servicing</option>
+                    <option value="Ready" {% if item.status == 'Ready' %}selected{% endif %}>Ready</option>
+                    <option value="Sold" {% if item.status == 'Sold' %}selected{% endif %}>Sold</option>
+                </select>
+            </section>
+
+            <section class="card card-blue">
+                <h4 class="section-title">Pricing Info</h4>
+
+                <label class="field-label">Purchase Price (₹)</label>
+                <input type="number" step="0.01" id="purchase_price" name="purchase_price" value="{{ item.purchase_price }}" class="table-input border-bottom" required>
+
+                <label class="field-label">Expenses (₹)</label>
+                <input type="number" step="0.01" id="total_expenses" name="total_expenses" value="{{ item.total_expenses }}" class="table-input border-bottom" required>
+
+                <label class="field-label">Intended Profit (Fix/%)</label>
+                <input type="text" id="profit" name="profit" value="{{ item.intended_profit }}" class="table-input border-bottom" required>
+
+                <div class="calc-box">
+                    <label class="bold-label">Final Selling Price</label>
+                    <input type="number" step="0.01" id="selling_price" name="selling_price" value="{{ item.selling_price }}" class="table-input price-focus" required>
+                    <button type="button" onclick="runCalculation()" class="btn-calc">Calculate</button>
+                </div>
+            </section>
+        </div>
+
+        <section class="gallery-section">
+            <h4 class="section-title">Product Gallery</h4>
+            <div class="image-grid">
+                {% if photos %}
+                    {% for photo_name in photos %}
+                    <div class="image-card">
+                        <img src="/static/inventory_photos/{{ item.inventory_id }}/{{ photo_name }}" class="preview-img">
+                        <button type="submit" formaction="/delete-photo/{{ item.inventory_id }}/{{ photo_name }}" class="badge status-sold delete-btn">Delete</button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            <div class="upload-zone">
+                <label class="bold-label">Add Photos (Multiple)</label>
+                <input type="file" name="photos" accept="image/*" multiple>
+            </div>
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="/add-items/{{ item.batch_id }}" class="action-link">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function runCalculation() {
+    const pp = parseFloat(document.getElementById('purchase_price').value) || 0;
+    const exp = parseFloat(document.getElementById('total_expenses').value) || 0;
+    const profitStr = document.getElementById('profit').value.trim();
+    let calcProfit = 0;
+    if (profitStr.endsWith('%')) {
+        let percent = parseFloat(profitStr.replace('%', '')) / 100;
+        calcProfit = pp * percent;
+    } else {
+        calcProfit = parseFloat(profitStr) || 0;
+    }
+    const finalPrice = pp + exp + calcProfit;
+    document.getElementById('selling_price').value = finalPrice.toFixed(2);
+}
+</script>
+{% endblock %}

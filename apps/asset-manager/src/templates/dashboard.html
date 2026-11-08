@@ -1,0 +1,75 @@
+{% extends "base.html" %} {% block content %}
+<div class="page-header-compact">
+    <h3 class="title-small">Liquidation Overview</h3>
+
+    <div
+        class="summary-bar"
+        style="
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        "
+    >
+        <div style="width: 100%">
+            <span class="summary-label">Estimated Business Worth</span>
+            <div class="summary-val" style="font-size: 1.8rem; color: #1a202c">
+                ₹{{ "{:,.2f}".format(max_worth) }}
+                <span
+                    style="
+                        font-size: 1rem;
+                        color: #6c757d;
+                        font-weight: normal;
+                        margin-left: 10px;
+                    "
+                >
+                    (Min Liquidation: ₹{{ "{:,.2f}".format(min_worth) }})
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="card card-blue">
+            <h4 class="section-title">💻 Laptops (Inventory)</h4>
+            <div class="card-val">₹{{ "{:,.2f}".format(stock_market) }}</div>
+            <p class="text-muted">
+                {{ item_count }} Units (Cost: ₹{{ "{:,.2f}".format(stock_cost)
+                }})
+            </p>
+            <a href="/all-items" class="action-link-blue"
+                >Inventory Listing →</a
+            >
+        </div>
+
+        <div class="card card-yellow">
+            <h4 class="section-title">📤 Receivable (Credit)</h4>
+            <div class="card-val" style="color: #e65100">
+                ₹{{ "{:,.2f}".format(total_receivable) }}
+            </div>
+            <p class="text-muted">Payment to be received from sales</p>
+            <a href="/ledger" class="action-link">View Ledger →</a>
+        </div>
+
+        <div class="card" style="border-left: 4px solid #2e7d32">
+            <h4 class="section-title">💵 Liquidity (Cash)</h4>
+            <div class="card-val" style="color: #2e7d32">
+                ₹{{ "{:,.2f}".format(total_cash) }}
+            </div>
+            <p class="text-muted">Total payments received in bank/cash</p>
+        </div>
+
+        <div class="card" style="border-left: 4px solid #6c757d">
+            <h4 class="section-title">🛠️ Tools (Fixed)</h4>
+            <div class="card-val" style="color: #495057">
+                ₹{{ "{:,.2f}".format(asset_value) }}
+            </div>
+            <p class="text-muted">Value of workshop equipment</p>
+            <a href="/assets-list" class="action-link" style="color: #6c757d"
+                >Asset List →</a
+            >
+        </div>
+    </div>
+</div>
+{% endblock %}

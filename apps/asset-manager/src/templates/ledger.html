@@ -1,0 +1,76 @@
+{% extends "base.html" %} {% block content %}
+<div class="page-header-compact">
+    <h3 class="title-small">Customer Ledger & Credit Tracking</h3>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Sale Date</th>
+                <th>Customer</th>
+                <th>Total Bill</th>
+                <th>Paid So Far</th>
+                <th>Remaining</th>
+                <th>Payment History</th>
+                <th>Quick Collect</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sale in pending_sales %}
+            <tr>
+                <td>{{ sale.sale_date }}</td>
+                <td><strong>{{ sale.customer.name }}</strong></td>
+                <td>₹{{ "{:,.2f}".format(sale.total_amount) }}</td>
+                <td>₹{{ "{:,.2f}".format(sale.amount_paid) }}</td>
+                <td class="status-sold">
+                    ₹{{ "{:,.2f}".format(sale.total_amount - sale.amount_paid)
+                    }}
+                </td>
+                <td>
+                    <ul class="payment-history-list">
+                        {% for p in sale.payments %}
+                        <li>
+                            <span class="history-date"
+                                >{{ p.payment_date }}</span
+                            >:
+                            <span class="history-amt"
+                                >₹{{ p.amount_received }}</span
+                            >
+                            <small>({{ p.note }})</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </td>
+                <td>
+                    <form
+                        action="/update-payment"
+                        method="post"
+                        class="inline-form"
+                    >
+                        <input
+                            type="hidden"
+                            name="sale_id"
+                            value="{{ sale.id }}"
+                        />
+                        <input
+                            type="number"
+                            name="new_payment"
+                            placeholder="Amt"
+                            step="0.01"
+                            class="table-input border-bottom"
+                            required
+                        />
+                        <input
+                            type="text"
+                            name="payment_note"
+                            placeholder="Mode (GPay/Cash)"
+                            class="table-input border-bottom"
+                        />
+                        <button type="submit" class="btn-calc">Collect</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

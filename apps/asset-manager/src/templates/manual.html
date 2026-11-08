@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .manual { max-width: 720px; }
+    .manual h2 { margin-top: 2.2em; padding-top: 0.4em; }
+    .manual ol li, .manual ul li { margin-bottom: 0.45em; }
+    .manual table { font-size: 0.95em; }
+    .manual .tip {
+        background: #fffbe6;
+        border-left: 4px solid #ffca28;
+        padding: 0.7em 1em;
+        border-radius: 4px;
+        margin: 1em 0;
+    }
+    .manual .say {
+        font-family: monospace;
+        background: #eee;
+        padding: 0 0.4em;
+        border-radius: 3px;
+    }
+</style>
+
+<div class="manual">
+    <h1>📖 User Manual</h1>
+    <p><em>How to use Angel Tools Manager — written for everyone, no tech knowledge needed.</em></p>
+
+    <h2>What is this tool for?</h2>
+    <p>You buy things, you sell things, and sometimes money comes late.
+    This tool is your shop's memory. It remembers:</p>
+    <ul>
+        <li>what you bought, from whom, and what it cost</li>
+        <li>what you are selling each item for</li>
+        <li>what you have sold, and to whom</li>
+        <li>who still owes you money</li>
+        <li>how much your whole business is worth today</li>
+    </ul>
+    <p>Nothing here is permanent on the first try — every number can be
+    corrected later on the edit screen. So don't worry about making
+    mistakes. Just start.</p>
+
+    <h2>The seven pages</h2>
+    <table>
+        <tr><th>Page</th><th>What it is for</th></tr>
+        <tr><td>🏠 <a href="/">Dashboard</a></td><td>The big picture. Your shop's worth, stock value, cash received, money owed to you.</td></tr>
+        <tr><td>📦 <a href="/batch">Batches</a></td><td>Start here when a fresh lot arrives. A batch = one supplier, one purchase, one date.</td></tr>
+        <tr><td>💻 <a href="/all-items">Items</a></td><td>Every item in history, newest first. Click an item to see or fix its details and photos.</td></tr>
+        <tr><td>💰 <a href="/sales">Sales</a></td><td>Sell one or many items to a customer — including the money they gave you today.</td></tr>
+        <tr><td>🧾 <a href="/ledger">Ledger</a></td><td>Customers who still owe you money. Add each payment when it arrives.</td></tr>
+        <tr><td>🛠️ <a href="/assets-list">Assets</a></td><td>Things you keep and don't sell — tools, equipment. They count toward your worth but never appear in Sales.</td></tr>
+        <tr><td>📖 <a href="/manual">Manual</a></td><td>You are here.</td></tr>
+    </table>
+
+    <h2 id="buy">1. I bought some new items — how do I record them?</h2>
+    <p>Every purchase starts as a <em>batch</em>. A batch is simply "the items
+    I got from one supplier, on one day".</p>
+    <ol>
+        <li>Open <a href="/batch">Batches</a>.</li>
+        <li>Fill the empty row at the top:
+            <span class="say">Supplier</span> (e.g. <em>Neha Trading</em>),
+            <span class="say">Description</span> (e.g. <em>September laptop lot</em>),
+            and the date (today's date is already filled for you).</li>
+        <li>Click <em>Add Batch</em>. Your batch appears in the list below.</li>
+        <li>Find your batch in the list and open the button to
+            <em>add items</em>.</li>
+        <li>For each item, fill the row:
+            <table>
+                <tr><th>Field</th><th>What to type</th><th>Example</th></tr>
+                <tr><td>Brand</td><td>The maker</td><td>Lenovo</td></tr>
+                <tr><td>Model</td><td>Which model</td><td>ThinkPad T490</td></tr>
+                <tr><td>Serial number</td><td>From the item or the label — must be <em>unique</em></td><td>PF3XYZ12</td></tr>
+                <tr><td>Purchase price</td><td>What you paid <em>this supplier</em> for it</td><td>22000.00</td></tr>
+                <tr><td>Profit</td><td>Either a plain amount <span class="say">5000</span>, or a percent <span class="say">15%</span> of the purchase price</td><td>15%</td></tr>
+            </table>
+        </li>
+        <li>Save. Repeat for the next item. One row per item.</li>
+    </ol>
+    <div class="tip">💡 <strong>If the serial number is not known yet</strong> (e.g. it's
+    inside the box), type a temporary one like <em>NA-1</em>, then fix it later
+    on the item's edit screen.</div>
+
+    <h2 id="fix">2. I spent extra on an item, or my details are wrong</h2>
+    <p>Spend money on repairs, spares or transport before selling? Add it on
+    the item's edit screen — it is counted in the price.</p>
+    <ol>
+        <li>Open <a href="/all-items">Items</a> and click the item.</li>
+        <li>Type the extra cost in <span class="say">Total expenses</span>.</li>
+        <li>Save. The <span class="say">Selling price</span> box then shows a
+            <em>suggested price</em>: purchase price + expenses + your profit.
+            Adjust it up or down if you like — the suggested one is only a
+            helper, the number you save is the one used.</li>
+    </ol>
+    <p>On the same screen you can also fix brand, model, serial, or change the
+    <em>status</em>:</p>
+    <table>
+        <tr><th>Status</th><th>Meaning</th></tr>
+        <tr><td>In-Stock</td><td>Sitting in storage, not yet prepared for sale</td></tr>
+        <tr><td>Servicing</td><td>Being cleaned, repaired or tested</td></tr>
+        <tr><td>Ready</td><td>Ready to sell — it will now appear on the Sales page</td></tr>
+        <tr><td>Sold</td><td>Done — filled automatically when you make a sale. Don't set by hand.</td></tr>
+    </table>
+
+    <h2 id="photos">3. How do I add photos of an item?</h2>
+    <p>Also on the item's edit screen:</p>
+    <ol>
+        <li>Click <span class="say">Choose files / Choose images</span> in the
+            Photos area. You can pick several photos at once
+            (phone photos work fine).</li>
+        <li>Save the form — the photos upload with it.</li>
+        <li>Changed your mind about one? Press its ✕ / <em>Delete</em> button
+            next to that photo.</li>
+    </ol>
+    <p>Photos stay in the order you add them: 1, 2, 3… Continuous photos make
+    a complete story for the listing, without any repeat angles.</p>
+
+    <h2 id="sell">4. How do I sell something?</h2>
+    <ol>
+        <li>Before selling: on the item's edit screen set its status to
+            <em>Ready</em>. Only <em>Ready</em> and <em>In-Stock</em> items
+            appear on the Sales page.</li>
+        <li>Open <a href="/sales">Sales</a>.</li>
+        <li>Type or pick the <em>customer</em>. A brand-new name is remembered
+            automatically for next time.</li>
+        <li>Tick every item in today's bill. Each tick shows its selling
+            price, and the total builds as you go.</li>
+        <li>In <span class="say">Paid</span>, type the money received
+            <em>today</em>. If the customer gives a part-payment, type only
+            that part. The rest shows up in the Ledger as pending.</li>
+        <li>Save. The items turn to <em>Sold</em> automatically, on their own,
+            and you are taken to the Dashboard.</li>
+    </ol>
+
+    <h2 id="ledger">5. A customer paid later — I got some money. Where do I record it?</h2>
+    <ol>
+        <li>Open <a href="/ledger">Ledger</a>. You see every sale that still
+            has a balance, with the amount pending.</li>
+        <li>In that row, fill <span class="say">Amount received</span> and a
+            short <span class="say">Note</span> about how it came — e.g.
+            <em>GPay</em>, <em>Cash</em>, <em>Cheque 2041</em>.</li>
+        <li>Save. The pending amount drops. This payment is kept permanently
+            in that sale's payment book, together with the date and your note.
+            You never have to remember it.</li>
+    </ol>
+    <div class="tip">💡 Making several small payments? Add them one by one.
+    Each one keeps its own entry, so the full history stays true.</div>
+
+    <h2 id="assets">6. What about the tools and equipment I keep?</h2>
+    <p>Open <a href="/assets-list">Assets</a> and add a row: name
+    (e.g. <em>Oscilloscope</em>), what it cost, and when you bought it.
+    These never go into Sales — they are things you keep. Their total shows
+    up in your Dashboard worth.</p>
+
+    <h2 id="dashboard">7. What do the Dashboard numbers mean?</h2>
+    <table>
+        <tr><th>Number</th><th>Honest meaning</th></tr>
+        <tr><td>Cash received</td><td>All money that has actually come in, ever. Real money, no assumptions.</td></tr>
+        <tr><td>Receivables</td><td>Total that customers still owe you (bills made minus payments received).</td></tr>
+        <tr><td>Stock value (cost / market)</td><td>What you paid for the unsold items — and what you expect to sell them for.</td></tr>
+        <tr><td>Asset value</td><td>Total of everything on the Assets page.</td></tr>
+        <tr><td>Min worth</td><td>A cautious guess: stock at cost, cash received, ignoring tools. The "it can't get worse than this" number.</td></tr>
+        <tr><td>Max worth</td><td>An optimistic guess: every item sells at its listed price, tools count, and pending money arrives. The "if all goes well" number.</td></tr>
+    </table>
+    <p><strong>Real life lives between Min worth and Max worth.</strong>
+    Watch Min worth when you worry, and let Max worth show what you're
+    working for.</p>
+
+    <h2 id="rules">Good to know</h2>
+    <ul>
+        <li><strong>No delete buttons by design.</strong> Records are instead
+            corrected on the edit screens, so nothing is lost by accident —
+            fixing a number works almost always. Photos are one exception
+            with their own delete buttons.</li>
+        <li><strong>Sold items lock themselves.</strong> When a sale is made,
+            the items turn Sold and stay in that sale. The Sales page only
+            offers what is not sold.</li>
+        <li><strong>Saved means saved.</strong> When a page refreshes after
+            save (it flashes and returns to the list), your entry is in.
+            To double-check, look at the list again.</li>
+        <li><strong>Money numbers</strong> are in ₹ and can carry paise
+            (e.g. 19999.50).</li>
+    </ul>
+
+    <h2>One-minute recap</h2>
+    <p>📦 New lot arrives → create a <em>Batch</em>, add items.<br>
+    🔧 Repairs / extra costs → open the item, add to <em>expenses</em>.<br>
+    ✅ Item ready to go → set status <em>Ready</em>.<br>
+    💰 Customer buys → <em>Sales</em>, tick items, type today's payment.<br>
+    🧾 Payment comes later → <em>Ledger</em>, add payment + note.<br>
+    🏠 Every morning → the <em>Dashboard</em> tells you where you stand.</p>
+    <p style="color: #888;">Built on the shop's own system — if something here
+    looks different from what you see, the screen itself is right. This page
+    can be peeked from any phone, laptop or tablet you own.</p>
+</div>
+{% endblock %}
