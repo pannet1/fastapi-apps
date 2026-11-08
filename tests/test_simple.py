@@ -27,6 +27,22 @@ def test_asset_manager_mounted():
     manual = client.get("/asset-manager/manual")
     assert manual.status_code == 200
 
+    # All items page
+    items = client.get("/asset-manager/all-items")
+    assert items.status_code == 200
+
+    # Sales page
+    sales = client.get("/asset-manager/sales")
+    assert sales.status_code == 200
+
+    # Ledger page
+    ledger = client.get("/asset-manager/ledger")
+    assert ledger.status_code == 200
+
+    # Assets list page
+    assets = client.get("/asset-manager/assets-list")
+    assert assets.status_code == 200
+
 
 def test_personal_finance_mounted():
     # Personal Finance Dashboard HTML

@@ -234,59 +234,108 @@ class FastAPIMarketplace:
             cards_html = ""
             if not self.registry:
                 cards_html = """
-                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; background: #1e293b; border: 1px dashed #334155; border-radius: 16px;">
-                    <div style="font-size: 2.5rem; margin-bottom: 12px;">🧩</div>
-                    <h3 style="margin: 0 0 8px 0; color: #f8fafc; font-size: 1.25rem;">No Applications Integrated Yet</h3>
-                    <p style="margin: 0 auto; color: #94a3b8; font-size: 0.9rem; max-width: 500px; line-height: 1.5;">
-                        To integrate any existing FastAPI app, drop its folder into <code>apps/&lt;app_name&gt;</code>, or register it programmatically via <code>marketplace.register(app, path="/your-path")</code>.
+                <div class="col-span-full text-center py-16 px-6 bg-slate-900 border border-dashed border-slate-800 rounded-3xl">
+                    <div class="text-4xl mb-3">🧩</div>
+                    <h3 class="text-lg font-bold text-white mb-2">No Applications Integrated Yet</h3>
+                    <p class="text-slate-400 text-xs max-w-md mx-auto leading-relaxed">
+                        To integrate any existing FastAPI app, drop its folder into <code class="text-indigo-400 font-mono">apps/&lt;app_name&gt;</code>, or register it programmatically via <code class="text-indigo-400 font-mono">marketplace.register(app, path="/your-path")</code>.
                     </p>
                 </div>
                 """
             else:
                 for item in self.registry:
                     cards_html += f"""
-                    <div style="background:#1e293b; border:1px solid #334155; border-radius:12px; padding:24px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);">
+                    <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl hover:border-indigo-500/40">
                         <div>
-                            <div style="font-size:2.2rem; margin-bottom:10px;">{item['icon']}</div>
-                            <h2 style="margin:0 0 8px 0; color:#f8fafc; font-size:1.3rem; font-weight:700;">{item['name']}</h2>
-                            <p style="margin:0 0 16px 0; color:#94a3b8; font-size:0.9rem; line-height:1.5;">{item['description']}</p>
-                            <div style="margin-bottom:20px;">
-                                <span style="background:#0f172a; color:#38bdf8; padding:4px 10px; border-radius:6px; font-size:0.8rem; font-family:monospace; border:1px solid #1e293b;">
+                            <div class="w-14 h-14 rounded-2xl bg-slate-800/90 border border-slate-700/80 flex items-center justify-center text-3xl mb-4 shadow-inner">
+                                {item['icon']}
+                            </div>
+                            <h2 class="text-xl font-bold text-white tracking-tight mb-1">{item['name']}</h2>
+                            <p class="text-xs text-slate-400 leading-relaxed mb-4 line-clamp-3">{item['description']}</p>
+                            <div class="mb-6">
+                                <span class="bg-slate-950 text-cyan-400 px-3 py-1 rounded-lg text-xs font-mono border border-slate-800">
                                     Mount: {item['path']}
                                 </span>
                             </div>
                         </div>
-                        <div style="display:flex; gap:10px;">
-                            <a href="{item['path']}" style="flex:1; text-align:center; background:#4f46e5; hover:background:#4338ca; color:white; padding:10px 14px; border-radius:8px; text-decoration:none; font-size:0.9rem; font-weight:600;">Launch App</a>
-                            <a href="{item['docs_url']}" target="_blank" style="background:#334155; color:#cbd5e1; padding:10px 14px; border-radius:8px; text-decoration:none; font-size:0.9rem;">Docs</a>
+                        <div class="flex items-center gap-3 pt-4 border-t border-slate-800/80">
+                            <a href="{item['path']}" class="flex-1 py-2.5 text-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+                                <span>Launch App</span>
+                                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                            </a>
+                            <a href="{item['docs_url']}" target="_blank" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition border border-slate-700">
+                                Docs
+                            </a>
                         </div>
                     </div>
                     """
 
-            return f"""<!DOCTYPE html>
-            <html>
+            return f"""<!doctype html>
+            <html lang="en" class="dark">
             <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>{title}</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0b0f19; color:#f1f5f9; margin:0; padding:40px 20px; }}
-                    .container {{ max-width: 1000px; margin: 0 auto; }}
-                    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; margin-top: 30px; }}
+                    body {{ background-color: #0b0f19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+                    .glass-card {{ background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.08); }}
+                    .glass-card:hover {{ border-color: rgba(99, 102, 241, 0.3); }}
                 </style>
             </head>
-            <body>
-                <div class="container">
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:24px;">
-                        <div>
-                            <h1 style="margin:0; font-size:2rem; color:#fff; display:flex; align-items:center; gap:10px;">⚡ {title}</h1>
-                            <p style="margin:8px 0 0 0; color:#94a3b8; font-size:1rem;">{description}</p>
+            <body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
+                <!-- Navigation -->
+                <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-16">
+                            <div class="flex items-center gap-3">
+                                <span class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-xl shadow-lg shadow-indigo-500/20">
+                                    ⚡
+                                </span>
+                                <div>
+                                    <span class="text-base font-extrabold text-white tracking-tight block">FastAPI <span class="text-indigo-400">Marketplace</span></span>
+                                    <span class="text-[10px] text-slate-400 font-mono block -mt-1">Application Hub</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <a href="/docs" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-code text-cyan-400"></i> Core API Docs
+                                </a>
+                            </div>
                         </div>
-                        <a href="/docs" target="_blank" style="background:#1e293b; color:#38bdf8; padding:8px 16px; border-radius:8px; text-decoration:none; font-size:0.85rem; border:1px solid #334155;">Marketplace API Docs</a>
                     </div>
-                    <div class="grid">
+                </header>
+
+                <!-- Hero Section -->
+                <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div class="mb-10 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl">
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-3">
+                            <i class="fa-solid fa-rocket text-xs"></i> Pluggable Multi-App Ecosystem
+                        </div>
+                        <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                            FastAPI App <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Marketplace</span>
+                        </h1>
+                        <p class="text-slate-400 text-sm max-w-2xl mt-2 leading-relaxed">
+                            Seamlessly integrate, discover, and launch independent full-blown FastAPI applications under a unified domain.
+                        </p>
+                    </div>
+
+                    <!-- App Cards Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {cards_html}
                     </div>
-                </div>
+                </main>
+
+                <!-- Footer -->
+                <footer class="border-t border-slate-800/80 bg-slate-950/60 py-6 mt-12 text-center text-xs text-slate-500">
+                    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p>FastAPI App Marketplace • Unified Architecture</p>
+                        <div class="flex items-center gap-4">
+                            <span class="font-mono text-indigo-400">{len(self.registry)} Applications Mounted</span>
+                        </div>
+                    </div>
+                </footer>
             </body>
             </html>"""
 

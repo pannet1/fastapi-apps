@@ -5,7 +5,7 @@ async function updateCat(index, value) {
     formData.append("row_index", index);
     formData.append("category", value);
 
-    const response = await fetch("/update-category", {
+    const response = await fetch("update-category", {
         method: "POST",
         body: formData,
     });
@@ -30,7 +30,7 @@ async function handleUpload(event) {
 
     status.innerHTML = "Processing...";
 
-    const response = await fetch("/upload", {
+    const response = await fetch("upload", {
         method: "POST",
         body: formData,
     });

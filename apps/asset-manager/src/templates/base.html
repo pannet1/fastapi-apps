@@ -1,30 +1,106 @@
 <!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Ecomsense Manager</title>
-        <link
-            rel="stylesheet"
-            href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css"
-        />
-        <link rel="stylesheet" href="/static/styles.css?v=1.3" />
-    </head>
-    <body>
-        <nav>
-            <div class="nav-links">
-                <a href="/">🏠 Dashboard</a>
-                <a href="/batch">📦 Batches</a>
-                <a href="/all-items">💻 Items</a>
-                <a href="/sales">💰 Sales</a>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Asset & Inventory Manager{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 500: '#6366f1', 600: '#4f46e5' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0b0f19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card:hover { border-color: rgba(99, 102, 241, 0.3); }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
+
+    <!-- Primary App Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                
+                <!-- Left: Brand / Title -->
+                <div class="flex items-center gap-6">
+                    <a href="/" class="flex items-center gap-3 group">
+                        <span class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-cyan-500 flex items-center justify-center text-xl shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                            🛠️
+                        </span>
+                        <div>
+                            <span class="text-base font-extrabold text-white tracking-tight block">Ecomsense <span class="text-emerald-400">Assets</span></span>
+                            <span class="text-[10px] text-slate-400 font-mono block -mt-1">Inventory & Financial Ledger</span>
+                        </div>
+                    </a>
+
+                    <!-- Nav Tabs -->
+                    <nav class="hidden md:flex items-center gap-1">
+                        <a href="/" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-chart-pie text-emerald-400 text-xs"></i> Dashboard
+                        </a>
+                        <a href="/batch" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-boxes-stacked text-cyan-400 text-xs"></i> Batches
+                        </a>
+                        <a href="/all-items" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-laptop text-indigo-400 text-xs"></i> Items
+                        </a>
+                        <a href="/sales" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-cart-shopping text-emerald-400 text-xs"></i> Sales
+                        </a>
+                        <a href="/ledger" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-slate-800/80 transition flex items-center gap-1.5 font-bold">
+                            <i class="fa-solid fa-receipt text-xs"></i> Ledger
+                        </a>
+                        <a href="/assets-list" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-wrench text-slate-400 text-xs"></i> Equipment
+                        </a>
+                        <a href="/manual" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-book-open text-purple-400 text-xs"></i> Manual
+                        </a>
+                    </nav>
+                </div>
+
+                <!-- Right: Quick Link to Hub & Docs -->
+                <div class="flex items-center gap-3">
+                    <a href="/docs" target="_blank" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">
+                        <i class="fa-solid fa-code text-cyan-400"></i> API Docs
+                    </a>
+                    <a href="/" class="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-sm transition">
+                        <span>⚡</span> Hub
+                    </a>
+                </div>
             </div>
-            <div class="nav-right">
-                <a href="/ledger" style="color: #ffca28; margin-right: 15px"
-                    >🧾 Ledger</a
-                >
-                <a href="/assets-list">🛠️ Assets</a>
-                <a href="/manual" style="margin-left: 15px">📖 Manual</a>
+        </div>
+    </header>
+
+    <!-- Main Page Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Unified Footer -->
+    <footer class="border-t border-slate-800/80 bg-slate-950/60 py-6 mt-12 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p>Ecomsense Asset Manager • Integrated on FastAPI Marketplace</p>
+            <div class="flex items-center gap-4">
+                <a href="/asset-manager/" class="hover:text-slate-300 transition">Asset Manager</a>
+                <span>•</span>
+                <a href="/personal-finance/" class="hover:text-slate-300 transition">Personal Finance</a>
+                <span>•</span>
+                <a href="/" class="hover:text-slate-300 transition">Marketplace Home</a>
             </div>
-        </nav>
-        <main class="container">{% block content %}{% endblock %}</main>
-    </body>
+        </div>
+    </footer>
+
+</body>
 </html>

@@ -1,79 +1,102 @@
-{% extends "base.html" %} {% block content %}
-<div class="row">
-    <div class="col-md-7">
-        <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
-                Manage Envelope Budgets
+{% extends "base.html" %}
+
+{% block title %}Settings & Budget Envelopes • Personal Finance{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+    <!-- Left: Envelope Budgets Form -->
+    <div class="lg:col-span-7">
+        <div class="glass-card rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
+                <span class="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl text-lg border border-amber-500/20">
+                    <i class="fa-solid fa-envelope-open-text"></i>
+                </span>
+                <div>
+                    <h2 class="text-lg font-bold text-white">Envelope Budget Allocations</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Customize your monthly spending targets per category.</p>
+                </div>
             </div>
-            <div class="card-body">
-                <form action="/add-category" method="post">
-                    <div id="category-list">
-                        {% for name, budget in categories.items() %}
-                        <div class="input-group mb-2">
-                            <span class="input-group-text w-50"
-                                >{{ name }}</span
-                            >
-                            <input
-                                type="number"
-                                name="budget_{{ name }}"
-                                class="form-control"
-                                value="{{ budget }}"
-                            />
+
+            <form action="/add-category" method="post" class="space-y-4">
+                <div id="category-list" class="space-y-3">
+                    {% for name, budget in categories.items() %}
+                    <div class="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 focus-within:border-amber-500 transition">
+                        <span class="w-1/2 text-xs font-semibold text-slate-200 px-2 truncate">{{ name }}</span>
+                        <div class="relative w-1/2">
+                            <span class="absolute left-3 top-2 text-xs text-slate-500 font-mono">₹</span>
+                            <input type="number"
+                                   step="0.01"
+                                   name="budget_{{ name }}"
+                                   value="{{ budget }}"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-7 pr-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500">
                         </div>
-                        {% endfor %}
                     </div>
-                    <hr />
-                    <h6>Add New Envelope</h6>
-                    <div class="input-group mb-3">
-                        <input
-                            type="text"
-                            name="new_name"
-                            class="form-control"
-                            placeholder="Name"
-                        />
-                        <input
-                            type="number"
-                            name="new_budget"
-                            class="form-control"
-                            placeholder="Budget"
-                        />
+                    {% endfor %}
+                </div>
+
+                <div class="pt-6 border-t border-slate-800">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-plus text-amber-400"></i> Add New Category Envelope
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        <input type="text"
+                               name="new_name"
+                               placeholder="Category Name (e.g. Groceries)"
+                               class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        <input type="number"
+                               step="0.01"
+                               name="new_budget"
+                               placeholder="Monthly Budget (₹)"
+                               class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-amber-500">
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                        Save Changes
-                    </button>
-                </form>
-            </div>
+                </div>
+
+                <button type="submit"
+                        class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-amber-500/20">
+                    Save Budget Allocations
+                </button>
+            </form>
         </div>
     </div>
 
-    <div class="col-md-5">
-        <div class="card shadow-sm mb-4 border-warning">
-            <div class="card-header bg-warning text-dark">Data Import</div>
-            <div class="card-body">
-                <p class="small text-muted">
-                    Upload your raw bank CSV. Duplicates are automatically
-                    removed based on Date and Particulars.
-                </p>
-                <form onsubmit="handleUpload(event)">
-                    <div class="mb-3">
-                        <input
-                            type="file"
-                            class="form-control"
-                            id="csvFile"
-                            accept=".csv"
-                            required
-                        />
-                    </div>
-                    <button class="btn btn-warning w-100" type="submit">
-                        Upload & Merge
-                    </button>
-                </form>
-                <div
-                    id="statusMessage"
-                    class="mt-2 small font-weight-bold"
-                ></div>
+    <!-- Right: Bank CSV Import -->
+    <div class="lg:col-span-5">
+        <div class="glass-card rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
+                <span class="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl text-lg border border-cyan-500/20">
+                    <i class="fa-solid fa-file-csv"></i>
+                </span>
+                <div>
+                    <h2 class="text-lg font-bold text-white">Bank CSV Import</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Automated transaction ingestion & deduplication.</p>
+                </div>
             </div>
+
+            <p class="text-xs text-slate-400 leading-relaxed mb-6">
+                Upload your raw bank statement CSV. Transactions are automatically merged and deduplicated using Date, Particulars, and Amounts.
+            </p>
+
+            <form onsubmit="handleUpload(event)" class="space-y-4">
+                <div class="p-6 border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-2xl bg-slate-950/60 text-center transition">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-500 mb-2"></i>
+                    <p class="text-xs font-semibold text-slate-300 mb-2">Choose your statement CSV file</p>
+                    <input type="file"
+                           id="csvFile"
+                           accept=".csv"
+                           required
+                           class="block w-full text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700">
+                </div>
+
+                <button type="submit"
+                        class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs border border-slate-700 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-upload text-amber-400"></i> Upload & Merge Transactions
+                </button>
+            </form>
+
+            <div id="statusMessage" class="mt-4 text-xs font-bold text-center"></div>
         </div>
     </div>
+
 </div>
 {% endblock %}

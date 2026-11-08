@@ -1,75 +1,113 @@
-{% extends "base.html" %} {% block content %}
-<div class="page-header-compact">
-    <h3 class="title-small">Liquidation Overview</h3>
+{% extends "base.html" %}
 
-    <div
-        class="summary-bar"
-        style="
-            margin-bottom: 25px;
-            padding: 20px;
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-        "
-    >
-        <div style="width: 100%">
-            <span class="summary-label">Estimated Business Worth</span>
-            <div class="summary-val" style="font-size: 1.8rem; color: #1a202c">
-                ₹{{ "{:,.2f}".format(max_worth) }}
-                <span
-                    style="
-                        font-size: 1rem;
-                        color: #6c757d;
-                        font-weight: normal;
-                        margin-left: 10px;
-                    "
-                >
-                    (Min Liquidation: ₹{{ "{:,.2f}".format(min_worth) }})
+{% block title %}Dashboard & Liquidation Overview • Asset Manager{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-3">
+        <i class="fa-solid fa-chart-pie text-xs"></i> Financial & Inventory Telemetry
+    </div>
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Liquidation & Valuation Overview</h1>
+    <p class="text-xs text-slate-400 mt-1">Real-time asset valuation, inventory liquidity, and outstanding receivables.</p>
+</div>
+
+<!-- Primary Valuation Banner -->
+<div class="glass-card rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl mb-8 bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <span class="text-xs uppercase font-bold text-slate-400 tracking-wider block mb-1">Estimated Business Worth</span>
+            <div class="flex items-baseline gap-3 flex-wrap">
+                <span class="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 font-mono">
+                    ₹{{ "{:,.2f}".format(max_worth) }}
+                </span>
+                <span class="text-xs sm:text-sm text-slate-400 font-mono">
+                    (Min Liquidation: <strong class="text-slate-300">₹{{ "{:,.2f}".format(min_worth) }}</strong>)
                 </span>
             </div>
         </div>
-    </div>
-
-    <div class="dashboard-grid">
-        <div class="card card-blue">
-            <h4 class="section-title">💻 Laptops (Inventory)</h4>
-            <div class="card-val">₹{{ "{:,.2f}".format(stock_market) }}</div>
-            <p class="text-muted">
-                {{ item_count }} Units (Cost: ₹{{ "{:,.2f}".format(stock_cost)
-                }})
-            </p>
-            <a href="/all-items" class="action-link-blue"
-                >Inventory Listing →</a
-            >
-        </div>
-
-        <div class="card card-yellow">
-            <h4 class="section-title">📤 Receivable (Credit)</h4>
-            <div class="card-val" style="color: #e65100">
-                ₹{{ "{:,.2f}".format(total_receivable) }}
-            </div>
-            <p class="text-muted">Payment to be received from sales</p>
-            <a href="/ledger" class="action-link">View Ledger →</a>
-        </div>
-
-        <div class="card" style="border-left: 4px solid #2e7d32">
-            <h4 class="section-title">💵 Liquidity (Cash)</h4>
-            <div class="card-val" style="color: #2e7d32">
-                ₹{{ "{:,.2f}".format(total_cash) }}
-            </div>
-            <p class="text-muted">Total payments received in bank/cash</p>
-        </div>
-
-        <div class="card" style="border-left: 4px solid #6c757d">
-            <h4 class="section-title">🛠️ Tools (Fixed)</h4>
-            <div class="card-val" style="color: #495057">
-                ₹{{ "{:,.2f}".format(asset_value) }}
-            </div>
-            <p class="text-muted">Value of workshop equipment</p>
-            <a href="/assets-list" class="action-link" style="color: #6c757d"
-                >Asset List →</a
-            >
+        <div class="flex items-center gap-2">
+            <span class="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
+                Healthy Valuation
+            </span>
         </div>
     </div>
+</div>
+
+<!-- 4 Key KPI Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+    <!-- Card 1: Inventory -->
+    <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between transition hover:-translate-y-1 hover:shadow-xl hover:border-indigo-500/30">
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Inventory</span>
+                <span class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-sm border border-indigo-500/20">💻</span>
+            </div>
+            <div class="text-2xl font-black text-white font-mono mb-1">₹{{ "{:,.2f}".format(stock_market) }}</div>
+            <p class="text-xs text-slate-400">{{ item_count }} Units (Cost: ₹{{ "{:,.2f}".format(stock_cost) }})</p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+            <a href="/all-items" class="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition flex items-center justify-between">
+                <span>Inventory Listing</span>
+                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Card 2: Receivables -->
+    <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between transition hover:-translate-y-1 hover:shadow-xl hover:border-amber-500/30">
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Receivables</span>
+                <span class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm border border-amber-500/20">📤</span>
+            </div>
+            <div class="text-2xl font-black text-amber-400 font-mono mb-1">₹{{ "{:,.2f}".format(total_receivable) }}</div>
+            <p class="text-xs text-slate-400">Payment pending from customer sales</p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+            <a href="/ledger" class="text-xs font-bold text-amber-400 hover:text-amber-300 transition flex items-center justify-between">
+                <span>View Credit Ledger</span>
+                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Card 3: Liquidity -->
+    <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between transition hover:-translate-y-1 hover:shadow-xl hover:border-emerald-500/30">
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Cash Liquidity</span>
+                <span class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm border border-emerald-500/20">💵</span>
+            </div>
+            <div class="text-2xl font-black text-emerald-400 font-mono mb-1">₹{{ "{:,.2f}".format(total_cash) }}</div>
+            <p class="text-xs text-slate-400">Total payments collected in bank/cash</p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+            <a href="/sales" class="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition flex items-center justify-between">
+                <span>View Sales Record</span>
+                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Card 4: Equipment / Fixed Assets -->
+    <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between transition hover:-translate-y-1 hover:shadow-xl hover:border-slate-500/30">
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Workshop Equipment</span>
+                <span class="w-8 h-8 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center text-sm border border-slate-700">🛠️</span>
+            </div>
+            <div class="text-2xl font-black text-slate-200 font-mono mb-1">₹{{ "{:,.2f}".format(asset_value) }}</div>
+            <p class="text-xs text-slate-400">Value of workshop tools & machinery</p>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/80">
+            <a href="/assets-list" class="text-xs font-bold text-slate-300 hover:text-white transition flex items-center justify-between">
+                <span>Equipment Inventory</span>
+                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
+    </div>
+
 </div>
 {% endblock %}

@@ -1,74 +1,135 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="page-header-compact">
-    <h3 class="title-small">{{ item.brand }} {{ item.model }}: {{ item.serial }} ({{ item.batch_id }})</h3>
 
-    <form action="/update-item" method="post" enctype="multipart/form-data">
+{% block title %}Edit {{ item.brand }} {{ item.model }} • Asset Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
+                <span class="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg text-sm border border-indigo-500/20">💻</span>
+                {{ item.brand }} {{ item.model }}
+            </h1>
+            <p class="text-xs text-slate-400 mt-1 font-mono">Serial: <span class="text-cyan-400 font-bold">{{ item.serial }}</span> • Batch #{{ item.batch_id }}</p>
+        </div>
+        <a href="/add-items/{{ item.batch_id }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-2">
+            <i class="fa-solid fa-arrow-left text-[10px]"></i> Batch #{{ item.batch_id }}
+        </a>
+    </div>
+
+    <form action="/update-item" method="post" enctype="multipart/form-data" class="space-y-8">
         <input type="hidden" name="item_id" value="{{ item.inventory_id }}">
 
-        <div class="dashboard-grid">
-            <section class="card card-yellow">
-                <h4 class="section-title">Technical Details</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Technical Details Card -->
+            <div class="glass-card rounded-2xl p-6 border border-slate-800 shadow-xl space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-microchip"></i> Technical Specifications
+                </h3>
 
-                <label class="field-label">Brand</label>
-                <input type="text" name="brand" value="{{ item.brand }}" class="table-input border-bottom" required>
-
-                <label class="field-label">Model</label>
-                <input type="text" name="model" value="{{ item.model }}" class="table-input border-bottom" required>
-
-                <label class="field-label">Serial Number</label>
-                <input type="text" name="serial" value="{{ item.serial }}" class="table-input border-bottom" required>
-
-                <label class="field-label">Status</label>
-                <select name="status" class="select-input">
-                    <option value="In-Stock" {% if item.status == 'In-Stock' %}selected{% endif %}>In-Stock</option>
-                    <option value="Servicing" {% if item.status == 'Servicing' %}selected{% endif %}>Servicing</option>
-                    <option value="Ready" {% if item.status == 'Ready' %}selected{% endif %}>Ready</option>
-                    <option value="Sold" {% if item.status == 'Sold' %}selected{% endif %}>Sold</option>
-                </select>
-            </section>
-
-            <section class="card card-blue">
-                <h4 class="section-title">Pricing Info</h4>
-
-                <label class="field-label">Purchase Price (₹)</label>
-                <input type="number" step="0.01" id="purchase_price" name="purchase_price" value="{{ item.purchase_price }}" class="table-input border-bottom" required>
-
-                <label class="field-label">Expenses (₹)</label>
-                <input type="number" step="0.01" id="total_expenses" name="total_expenses" value="{{ item.total_expenses }}" class="table-input border-bottom" required>
-
-                <label class="field-label">Intended Profit (Fix/%)</label>
-                <input type="text" id="profit" name="profit" value="{{ item.intended_profit }}" class="table-input border-bottom" required>
-
-                <div class="calc-box">
-                    <label class="bold-label">Final Selling Price</label>
-                    <input type="number" step="0.01" id="selling_price" name="selling_price" value="{{ item.selling_price }}" class="table-input price-focus" required>
-                    <button type="button" onclick="runCalculation()" class="btn-calc">Calculate</button>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Brand</label>
+                    <input type="text" name="brand" value="{{ item.brand }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
                 </div>
-            </section>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Model</label>
+                    <input type="text" name="model" value="{{ item.model }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Serial Number</label>
+                    <input type="text" name="serial" value="{{ item.serial }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-cyan-400 font-mono focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Inventory Status</label>
+                    <select name="status" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+                        <option value="In-Stock" {% if item.status == 'In-Stock' %}selected{% endif %}>In-Stock</option>
+                        <option value="Servicing" {% if item.status == 'Servicing' %}selected{% endif %}>Servicing</option>
+                        <option value="Ready" {% if item.status == 'Ready' %}selected{% endif %}>Ready</option>
+                        <option value="Sold" {% if item.status == 'Sold' %}selected{% endif %}>Sold</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Pricing Info Card -->
+            <div class="glass-card rounded-2xl p-6 border border-slate-800 shadow-xl space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-coins"></i> Valuation & Pricing
+                </h3>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Purchase Cost (₹)</label>
+                    <input type="number" step="0.01" id="purchase_price" name="purchase_price" value="{{ item.purchase_price }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Repair / Servicing Expenses (₹)</label>
+                    <input type="number" step="0.01" id="total_expenses" name="total_expenses" value="{{ item.total_expenses }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">Target Margin (Flat ₹ or %)</label>
+                    <input type="text" id="profit" name="profit" value="{{ item.intended_profit }}" required placeholder="e.g. 5000 or 15%"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="p-4 bg-slate-950/80 rounded-xl border border-slate-800 mt-2">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-bold uppercase tracking-wider text-emerald-400">Final Selling Price (₹)</label>
+                        <button type="button" onclick="runCalculation()"
+                                class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                            <i class="fa-solid fa-calculator text-[10px]"></i> Auto Calculate
+                        </button>
+                    </div>
+                    <input type="number" step="0.01" id="selling_price" name="selling_price" value="{{ item.selling_price }}" required
+                           class="w-full bg-slate-900 border border-emerald-500/50 rounded-lg px-3 py-2 text-base text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
         </div>
 
-        <section class="gallery-section">
-            <h4 class="section-title">Product Gallery</h4>
-            <div class="image-grid">
+        <!-- Photos Section -->
+        <div class="glass-card rounded-2xl p-6 border border-slate-800 shadow-xl space-y-4">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-2">
+                <i class="fa-solid fa-camera"></i> Product Photographs
+            </h3>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
                 {% if photos %}
                     {% for photo_name in photos %}
-                    <div class="image-card">
-                        <img src="/static/inventory_photos/{{ item.inventory_id }}/{{ photo_name }}" class="preview-img">
-                        <button type="submit" formaction="/delete-photo/{{ item.inventory_id }}/{{ photo_name }}" class="badge status-sold delete-btn">Delete</button>
+                    <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 text-center relative group">
+                        <img src="/static/inventory_photos/{{ item.inventory_id }}/{{ photo_name }}" class="w-full h-24 object-cover rounded-lg mb-2">
+                        <button type="submit" formaction="/delete-photo/{{ item.inventory_id }}/{{ photo_name }}"
+                                class="w-full py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-[10px] font-bold transition">
+                            <i class="fa-solid fa-trash text-[9px]"></i> Delete
+                        </button>
                     </div>
                     {% endfor %}
                 {% endif %}
             </div>
-            <div class="upload-zone">
-                <label class="bold-label">Add Photos (Multiple)</label>
-                <input type="file" name="photos" accept="image/*" multiple>
-            </div>
-        </section>
 
-        <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Changes</button>
-            <a href="/add-items/{{ item.batch_id }}" class="action-link">Cancel</a>
+            <div class="p-6 border-2 border-dashed border-slate-800 rounded-xl bg-slate-950/40 text-center">
+                <p class="text-xs font-semibold text-slate-300 mb-2">Upload Unit Photographs</p>
+                <input type="file" name="photos" accept="image/*" multiple
+                       class="text-xs text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-300 hover:file:bg-slate-700">
+            </div>
+        </div>
+
+        <!-- Form Submit Footer -->
+        <div class="flex items-center justify-end gap-3 pt-4">
+            <a href="/add-items/{{ item.batch_id }}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">
+                Cancel
+            </a>
+            <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20">
+                Save All Changes
+            </button>
         </div>
     </form>
 </div>

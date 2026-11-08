@@ -1,63 +1,80 @@
-{% extends "base.html" %} {% block content %}
-<div>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Particulars</th>
-                <th>Debit</th>
-                <th>Category</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in transactions %} {% set is_uncat = row['Category'] ==
-            'Uncategorized' %}
-            <tr class="{{ 'table-warning' if is_uncat else 'table-success' }}">
-                <td>{{ row['Tran Date'] }}</td>
-                <td>{{ row['Particulars'] }}</td>
+{% extends "base.html" %}
 
-                <td class="text-danger">
-                    {{ row['Debit'] if row['Debit'] == row['Debit'] and
-                    row['Debit'] != 0 else "" }}
-                </td>
-                <td class="text-success">
-                    {{ row['Credit'] if row['Credit'] == row['Credit'] and
-                    row['Credit'] != 0 else "" }}
-                </td>
+{% block title %}Transactions Ledger • Personal Finance{% endblock %}
 
-                <td>
-                    <select
-                        class="form-select shadow-sm"
-                        onchange="updateCat({{ start_index + loop.index0 }}, this.value)"
-                    >
-                        <option selected>{{ row['Category'] }}</option>
-                        {% for cat in categories %} {% if cat != row['Category']
-                        %}
-                        <option value="{{ cat }}">{{ cat }}</option>
-                        {% endif %} {% endfor %}
-                    </select>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+{% block content %}
+<div class="glass-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+    <!-- Header -->
+    <div class="p-6 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
+                <span class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg text-sm border border-emerald-500/20">
+                    <i class="fa-solid fa-receipt"></i>
+                </span>
+                Statement Transactions
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Classify transactions into category envelopes in real time.</p>
+        </div>
 
-    <nav>
-        <ul class="pagination">
-            <li class="page-item {{ 'disabled' if page == 1 }}">
-                <a class="page-link" href="/transactions?page={{ page - 1 }}"
-                    >Previous</a
-                >
-            </li>
-            <li class="page-item active">
-                <span class="page-link">{{ page }} of {{ total_pages }}</span>
-            </li>
-            <li class="page-item {{ 'disabled' if page == total_pages }}">
-                <a class="page-link" href="/transactions?page={{ page + 1 }}"
-                    >Next</a
-                >
-            </li>
-        </ul>
-    </nav>
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-mono text-slate-400">Page {{ page }} of {{ total_pages }}</span>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                <tr>
+                    <th class="py-3.5 px-4 font-mono">Date</th>
+                    <th class="py-3.5 px-4">Particulars</th>
+                    <th class="py-3.5 px-4 text-right">Debit</th>
+                    <th class="py-3.5 px-4 text-right">Credit</th>
+                    <th class="py-3.5 px-4">Category Envelope</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-800/60">
+                {% for row in transactions %}
+                {% set is_uncat = row['Category'] == 'Uncategorized' %}
+                <tr class="hover:bg-slate-800/40 transition {% if is_uncat %}bg-amber-500/[0.03]{% endif %}">
+                    <td class="py-3 px-4 text-slate-400 font-mono whitespace-nowrap">{{ row['Tran Date'] }}</td>
+                    <td class="py-3 px-4 font-medium text-slate-200">{{ row['Particulars'] }}</td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-rose-400 whitespace-nowrap">
+                        {{ ("₹" + "{:,.2f}".format(row['Debit'])) if row['Debit'] == row['Debit'] and row['Debit'] != 0 else "" }}
+                    </td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
+                        {{ ("₹" + "{:,.2f}".format(row['Credit'])) if row['Credit'] == row['Credit'] and row['Credit'] != 0 else "" }}
+                    </td>
+                    <td class="py-3 px-4">
+                        <select onchange="updateCat({{ start_index + loop.index0 }}, this.value)"
+                                class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+                            <option selected>{{ row['Category'] }}</option>
+                            {% for cat in categories %}
+                            {% if cat != row['Category'] %}
+                            <option value="{{ cat }}">{{ cat }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+        <a href="/transactions?page={{ page - 1 }}"
+           class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white {% if page <= 1 %}opacity-40 pointer-events-none{% endif %} transition">
+            ← Previous
+        </a>
+        <span class="text-xs font-mono text-slate-400">Page {{ page }} of {{ total_pages }}</span>
+        <a href="/transactions?page={{ page + 1 }}"
+           class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white {% if page >= total_pages %}opacity-40 pointer-events-none{% endif %} transition">
+            Next →
+        </a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

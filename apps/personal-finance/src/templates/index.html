@@ -1,47 +1,77 @@
-{% extends "base.html" %} {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <a
-        href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
-        class="btn btn-outline-secondary"
-        >&laquo; Previous Month</a
-    >
-    <h2 class="mb-0">{{ current_date }}</h2>
-    <a
-        href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
-        class="btn btn-outline-secondary"
-        >Next Month &raquo;</a
-    >
+{% extends "base.html" %}
+
+{% block title %}Monthly Envelope Budget • Personal Finance{% endblock %}
+
+{% block content %}
+<!-- Month Selector Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+    <a href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm">
+        <i class="fa-solid fa-chevron-left text-[10px]"></i> Previous Month
+    </a>
+
+    <div class="text-center">
+        <span class="text-xs uppercase font-bold text-amber-400 tracking-wider block">Active Budget Period</span>
+        <h2 class="text-xl sm:text-2xl font-black text-white mt-0.5">{{ current_date }}</h2>
+    </div>
+
+    <a href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm">
+        Next Month <i class="fa-solid fa-chevron-right text-[10px]"></i>
+    </a>
 </div>
 
-<div class="row">
-    {% for cat, budget in budgets.items() %} {% set actual = report.get(cat, 0)
-    %} {% set percent = (actual / budget * 100) if budget > 0 else 0 %}
-    <div class="col-md-4 mb-4">
-        <div class="card shadow-sm">
-            <div class="card-body text-center">
-                <h5 class="card-title">{{ cat }}</h5>
-                <div class="progress mb-2" style="height: 25px">
-                    <div
-                        class="progress-bar {{ 'bg-danger' if percent > 100 else 'bg-success' }}"
-                        role="progressbar"
-                        style="width: {{ [percent, 100]|min }}%;"
-                    >
-                        {{ percent|round(1) }}%
-                    </div>
-                </div>
-                <p class="card-text">
-                    <strong>₹{{ actual }}</strong> of ₹{{ budget }}
-                </p>
-                {% if actual > budget %}
-                <small class="text-danger"
-                    >Overspent by ₹{{ actual - budget }}</small
-                >
-                {% else %}
-                <small class="text-muted"
-                    >₹{{ budget - actual }} remaining</small
-                >
-                {% endif %}
+<!-- Envelope Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for cat, budget in budgets.items() %}
+    {% set actual = report.get(cat, 0) %}
+    {% set percent = (actual / budget * 100) if budget > 0 else 0 %}
+    {% set is_over = actual > budget %}
+
+    <div class="glass-card rounded-2xl p-6 flex flex-col justify-between border border-slate-800 transition hover:-translate-y-0.5 hover:shadow-xl">
+        <div>
+            <!-- Category Title & Badge -->
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold text-white tracking-tight">{{ cat }}</h3>
+                <span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full font-mono border
+                    {% if is_over %}bg-rose-500/10 text-rose-400 border-rose-500/20
+                    {% elif percent > 85 %}bg-amber-500/10 text-amber-400 border-amber-500/20
+                    {% else %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% endif %}">
+                    {{ percent|round(1) }}%
+                </span>
             </div>
+
+            <!-- Modern Progress Bar -->
+            <div class="w-full bg-slate-950 rounded-full h-3 overflow-hidden p-0.5 border border-slate-800 mb-4">
+                <div class="h-full rounded-full transition-all duration-500
+                    {% if is_over %}bg-gradient-to-r from-rose-500 to-rose-600
+                    {% elif percent > 85 %}bg-gradient-to-r from-amber-500 to-amber-600
+                    {% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}"
+                    style="width: {{ [percent, 100]|min }}%;">
+                </div>
+            </div>
+
+            <!-- Spending Breakdown -->
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                <span>Spent: <strong class="text-white font-mono text-sm">₹{{ "{:,.2f}".format(actual) }}</strong></span>
+                <span>Budget: <strong class="text-slate-300 font-mono">₹{{ "{:,.2f}".format(budget) }}</strong></span>
+            </div>
+        </div>
+
+        <!-- Overspent / Remaining Alert Pill -->
+        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+            {% if is_over %}
+            <span class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-triangle-exclamation text-[11px]"></i> Over by ₹{{ "{:,.2f}".format(actual - budget) }}
+            </span>
+            {% else %}
+            <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
+            </span>
+            {% endif %}
+            <a href="/transactions" class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition">
+                View →
+            </a>
         </div>
     </div>
     {% endfor %}
