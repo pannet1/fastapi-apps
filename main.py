@@ -370,9 +370,17 @@ class FastAPIMarketplace:
                         module = importlib.util.module_from_spec(spec)
                         sys.modules[module_name] = module
                         spec.loader.exec_module(module)
+
+                        # Auto-resolve relative data file paths if defined in the module
+                        for var_name in ["MASTER_FILE", "CATEGORIES_FILE", "DATA_FILE", "DB_FILE"]:
+                            if hasattr(module, var_name):
+                                val = getattr(module, var_name)
+                                if isinstance(val, str) and not Path(val).is_absolute():
+                                    setattr(module, var_name, str((src_dir / val).resolve()))
+
                         sub_app = getattr(module, "app", None)
                         if isinstance(sub_app, FastAPI):
-                            icon = "📊" if "asset" in item.name.lower() else "📦"
+                            icon = "📊" if "asset" in item.name.lower() else ("💰" if "finance" in item.name.lower() else "📦")
                             self.register(sub_app, path=f"/{item.name}", icon=icon)
 
 

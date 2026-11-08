@@ -1,0 +1,79 @@
+{% extends "base.html" %} {% block content %}
+<div class="row">
+    <div class="col-md-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                Manage Envelope Budgets
+            </div>
+            <div class="card-body">
+                <form action="/add-category" method="post">
+                    <div id="category-list">
+                        {% for name, budget in categories.items() %}
+                        <div class="input-group mb-2">
+                            <span class="input-group-text w-50"
+                                >{{ name }}</span
+                            >
+                            <input
+                                type="number"
+                                name="budget_{{ name }}"
+                                class="form-control"
+                                value="{{ budget }}"
+                            />
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <hr />
+                    <h6>Add New Envelope</h6>
+                    <div class="input-group mb-3">
+                        <input
+                            type="text"
+                            name="new_name"
+                            class="form-control"
+                            placeholder="Name"
+                        />
+                        <input
+                            type="number"
+                            name="new_budget"
+                            class="form-control"
+                            placeholder="Budget"
+                        />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card shadow-sm mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">Data Import</div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Upload your raw bank CSV. Duplicates are automatically
+                    removed based on Date and Particulars.
+                </p>
+                <form onsubmit="handleUpload(event)">
+                    <div class="mb-3">
+                        <input
+                            type="file"
+                            class="form-control"
+                            id="csvFile"
+                            accept=".csv"
+                            required
+                        />
+                    </div>
+                    <button class="btn btn-warning w-100" type="submit">
+                        Upload & Merge
+                    </button>
+                </form>
+                <div
+                    id="statusMessage"
+                    class="mt-2 small font-weight-bold"
+                ></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

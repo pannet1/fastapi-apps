@@ -1,0 +1,49 @@
+{% extends "base.html" %} {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <a
+        href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
+        class="btn btn-outline-secondary"
+        >&laquo; Previous Month</a
+    >
+    <h2 class="mb-0">{{ current_date }}</h2>
+    <a
+        href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
+        class="btn btn-outline-secondary"
+        >Next Month &raquo;</a
+    >
+</div>
+
+<div class="row">
+    {% for cat, budget in budgets.items() %} {% set actual = report.get(cat, 0)
+    %} {% set percent = (actual / budget * 100) if budget > 0 else 0 %}
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
+                <h5 class="card-title">{{ cat }}</h5>
+                <div class="progress mb-2" style="height: 25px">
+                    <div
+                        class="progress-bar {{ 'bg-danger' if percent > 100 else 'bg-success' }}"
+                        role="progressbar"
+                        style="width: {{ [percent, 100]|min }}%;"
+                    >
+                        {{ percent|round(1) }}%
+                    </div>
+                </div>
+                <p class="card-text">
+                    <strong>₹{{ actual }}</strong> of ₹{{ budget }}
+                </p>
+                {% if actual > budget %}
+                <small class="text-danger"
+                    >Overspent by ₹{{ actual - budget }}</small
+                >
+                {% else %}
+                <small class="text-muted"
+                    >₹{{ budget - actual }} remaining</small
+                >
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
