@@ -3,6 +3,57 @@
 {% block title %}Transactions Ledger • Personal Finance{% endblock %}
 
 {% block content %}
+<!-- Quick Manual Transaction Entry for Humans -->
+<div class="glass-card rounded-2xl border border-slate-800 shadow-xl p-5 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs">
+                <i class="fa-solid fa-plus"></i>
+            </span>
+            Quick Add Transaction (Human Entry)
+        </h3>
+        <span class="text-[11px] text-slate-400">Instantly visible to AI Agents</span>
+    </div>
+    <form action="/transactions/add" method="post" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
+        <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Date</label>
+            <input type="date" name="tran_date" value="{{ today_date }}" required
+                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono" />
+        </div>
+        <div class="sm:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Particulars / Description</label>
+            <input type="text" name="particulars" placeholder="e.g. Grocery Store, Client Payment" required
+                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500" />
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Type</label>
+            <select name="tran_type" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-semibold">
+                <option value="debit" selected>💸 Expense (Debit)</option>
+                <option value="credit">💰 Income (Credit)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Amount</label>
+            <input type="number" step="0.01" name="amount" placeholder="0.00" required
+                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono font-bold" />
+        </div>
+        <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Envelope</label>
+            <select name="category" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500">
+                <option value="Uncategorized">Uncategorized</option>
+                {% for cat in categories %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="sm:col-span-2 md:col-span-6 flex justify-end gap-2 mt-1">
+            <button type="submit" class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-amber-500/20 flex items-center gap-1.5">
+                <i class="fa-solid fa-check text-xs"></i> Record Transaction
+            </button>
+        </div>
+    </form>
+</div>
+
 <div class="glass-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
     <!-- Header -->
     <div class="p-6 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -5,9 +5,12 @@ from pathlib import Path
 import re
 import sys
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 import uvicorn
+
+import unified_agent
+from agent_hub_ui import render_agent_hub_html
 
 # Guarantee this marketplace root is always at sys.path[0]
 BASE_DIR = Path(__file__).resolve().parent
@@ -228,6 +231,110 @@ class FastAPIMarketplace:
                                 return RedirectResponse(url=target, status_code=307)
             return response
 
+        # -------------------------------------------------------------
+        # AI Agent & Machine-Readable Intelligence Gateway
+        # -------------------------------------------------------------
+        @self.main_app.get("/llms.txt", response_class=PlainTextResponse)
+        def get_llms_txt():
+            """Standard llms.txt discovery index for AI Agents and LLMs."""
+            return unified_agent.LLMS_TXT_CONTENT
+
+        @self.main_app.get("/llms-full.txt", response_class=PlainTextResponse)
+        def get_llms_full_txt():
+            """Comprehensive agent instructions and schema definitions."""
+            return unified_agent.LLMS_FULL_TXT_CONTENT
+
+        @self.main_app.get("/.well-known/agent.json")
+        def get_agent_plugin_manifest():
+            """Plugin manifest for AI agent discovery."""
+            return {
+                "schema_version": "v1",
+                "name_for_model": "financial_and_business_intelligence",
+                "name_for_human": "FastAPI Financial & Business Intelligence",
+                "description_for_model": "Extracts summaries on personal finance (envelopes, cashflow, budgets) and business performance (revenue, COGS, margin, inventory, receivables, valuation).",
+                "description_for_human": "Personal Finance and Business Performance intelligence for AI agents.",
+                "api": {"type": "openapi", "url": "/openapi.json"},
+                "llms_txt": "/llms.txt",
+                "tools_schema": "/agent/tools.json",
+            }
+
+        @self.main_app.get("/agent/tools.json")
+        def get_agent_tools():
+            """Pre-built function calling schemas (OpenAI / Anthropic / Gemini format)."""
+            return {"tools": unified_agent.AGENT_TOOLS_SCHEMA}
+
+        @self.main_app.get("/agent/summary")
+        @self.main_app.get("/api/agent/summary")
+        def get_agent_summary(
+            month: Optional[int] = Query(None, description="Personal finance month (1-12)"),
+            year: Optional[int] = Query(None, description="Personal finance year"),
+            format: str = Query("json", description="Format: 'json' or 'markdown'"),
+        ):
+            """
+            Unified Agent Endpoint: Returns combined Personal Finance and Business Performance summary.
+            Sub-5ms response time, high-density machine-readable format.
+            """
+            res = unified_agent.get_unified_summary(month=month, year=year, fmt=format)
+            if format == "markdown":
+                return PlainTextResponse(res["markdown"])
+            return res
+
+        @self.main_app.get("/agent/brief", response_class=PlainTextResponse)
+        def get_agent_brief(
+            month: Optional[int] = Query(None, description="Personal finance month"),
+            year: Optional[int] = Query(None, description="Personal finance year"),
+        ):
+            """Returns token-optimized Markdown briefing ready for LLM context injection."""
+            res = unified_agent.get_unified_summary(month=month, year=year, fmt="markdown")
+            return res["markdown"]
+
+        @self.main_app.get("/agent/personal-finance")
+        def get_agent_personal_finance(
+            month: Optional[int] = Query(None),
+            year: Optional[int] = Query(None),
+            format: str = Query("json"),
+        ):
+            """Dedicated personal finance breakdown (cashflow, envelopes, budget vs actual)."""
+            res = unified_agent.get_personal_finance_summary(
+                unified_agent.PF_MASTER_FILE,
+                unified_agent.PF_CATEGORIES_FILE,
+                month=month,
+                year=year,
+                fmt=format,
+            )
+            if format == "markdown":
+                return PlainTextResponse(res["markdown"])
+            return res
+
+        @self.main_app.get("/agent/business-performance")
+        def get_agent_business_performance(format: str = Query("json")):
+            """Dedicated business performance breakdown (revenue, COGS, receivables, inventory, valuation)."""
+            db = unified_agent.am_db.SessionLocal()
+            try:
+                unified_agent.seed_sample_data_if_empty(db)
+                res = unified_agent.get_business_performance_summary(db, fmt=format)
+            finally:
+                db.close()
+            if format == "markdown":
+                return PlainTextResponse(res["markdown"])
+            return res
+
+        @self.main_app.get("/agent/query")
+        def get_agent_query(
+            q: str = Query(..., description="Query keyword: net_worth, revenue, debtors, budget, inventory, alerts"),
+            month: Optional[int] = Query(None),
+            year: Optional[int] = Query(None),
+        ):
+            """Sub-millisecond parameter resolver for targeted agent questions."""
+            return unified_agent.query_quick_metric(q=q, month=month, year=year)
+
+        @self.main_app.get("/agent", response_class=HTMLResponse)
+        def agent_hub_page(request: Request):
+            """Interactive Human & AI Agent Intelligence Portal."""
+            summary_data = unified_agent.get_unified_summary()
+            markdown_brief = unified_agent.get_unified_summary(fmt="markdown")["markdown"]
+            return render_agent_hub_html(summary_data, markdown_brief)
+
         # Marketplace Storefront UI
         @self.main_app.get("/", response_class=HTMLResponse)
         def marketplace_home(request: Request):
@@ -299,6 +406,9 @@ class FastAPIMarketplace:
                                 </div>
                             </div>
                             <div class="flex items-center gap-3">
+                                <a href="/agent" class="px-3 py-1.5 text-xs font-semibold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-lg border border-indigo-500/30 transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-robot text-indigo-400"></i> AI Agent Hub
+                                </a>
                                 <a href="/docs" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
                                     <i class="fa-solid fa-code text-cyan-400"></i> Core API Docs
                                 </a>
@@ -319,6 +429,34 @@ class FastAPIMarketplace:
                         <p class="text-slate-400 text-sm max-w-2xl mt-2 leading-relaxed">
                             Seamlessly integrate, discover, and launch independent full-blown FastAPI applications under a unified domain.
                         </p>
+                    </div>
+
+                    <!-- AI Agent Intelligence Featured Banner -->
+                    <div class="mb-8 p-6 rounded-3xl bg-gradient-to-r from-indigo-950/80 via-purple-950/50 to-slate-900 border border-indigo-500/30 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-2xl">
+                        <div>
+                            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[11px] font-mono font-bold mb-2.5">
+                                🤖 AI AGENT & FINANCIAL INTELLIGENCE LAYER
+                            </div>
+                            <h2 class="text-xl font-bold text-white tracking-tight">Extract Instant Personal Finance & Business Performance</h2>
+                            <p class="text-xs text-slate-400 mt-1.5 max-w-2xl leading-relaxed">
+                                Token-optimized summaries, net worth synthesis, envelope budget tracking, and sales ledger analysis designed specifically for autonomous AI agents and pair-programming LLMs.
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+                            <a href="/agent" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30 flex items-center gap-2">
+                                <i class="fa-solid fa-robot"></i>
+                                <span>Open Agent Hub</span>
+                            </a>
+                            <a href="/agent/summary" target="_blank" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-xl text-xs font-mono font-semibold border border-slate-700 transition">
+                                /agent/summary
+                            </a>
+                            <a href="/agent/brief" target="_blank" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-xl text-xs font-mono font-semibold border border-slate-700 transition">
+                                /agent/brief
+                            </a>
+                            <a href="/llms.txt" target="_blank" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-xs font-mono font-semibold border border-slate-700 transition">
+                                /llms.txt
+                            </a>
+                        </div>
                     </div>
 
                     <!-- App Cards Grid -->
@@ -444,11 +582,13 @@ marketplace.auto_discover(APPS_DIR)
 app = marketplace.main_app
 
 
+PORT = 11173
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="FastAPI App Marketplace")
-    parser.add_argument("--port", "-p", type=int, default=8080, help="Port to run on (default: 8080)")
+    parser.add_argument("--port", "-p", type=int, default=PORT, help=f"Port to run on (default: {PORT})")
     parser.add_argument("--host", "-H", type=str, default="0.0.0.0", help="Host to bind (default: 0.0.0.0)")
-    parser.add_argument("--reload", action="store_true", default=True, help="Enable auto-reload")
+    parser.add_argument("--reload", action="store_true", default=False, help="Enable auto-reload")
     args = parser.parse_args()
 
     print(f"🚀 Starting FastAPI Marketplace at http://{args.host}:{args.port}")
