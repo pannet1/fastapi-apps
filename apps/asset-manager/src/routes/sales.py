@@ -103,7 +103,7 @@ def process_sale(
         db.add(customer)
         db.commit()
         db.refresh(customer)
-    elif customer_phone and not customer.phone:
+    elif customer_phone and customer.phone != customer_phone:
         customer.phone = customer_phone
         db.commit()
 
