@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -39,6 +39,11 @@ app.include_router(sales.router)
 # Seed initial starter data on first run if database is fresh
 with Session(engine) as _init_db:
     seed_sample_data_if_empty(_init_db)
+
+
+@app.get("/agent")
+def redirect_agent_hub():
+    return RedirectResponse(url="/agent", status_code=303)
 
 
 # -------------------------------------------------------------

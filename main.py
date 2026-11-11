@@ -115,8 +115,8 @@ def _rewrite_subapp_html(content: bytes, prefix: str) -> bytes:
     """
     prefix = prefix.rstrip("/")
     text = content.decode("utf-8", errors="ignore")
-    # Rewrite href='/...' action='/...' src='/...' except external URLs or already prefixed
-    pattern = r'((?:href|action|src)=[\"\'])/(?!/|' + re.escape(prefix.lstrip("/")) + r'/|https?://)([^\"\']*)[\"\']'
+    # Rewrite href='/...' action='/...' src='/...' except external URLs, already prefixed, or root /agent routes
+    pattern = r'((?:href|action|src)=[\"\'])/(?!/|agent(?:/|[\"\'])|' + re.escape(prefix.lstrip("/")) + r'/|https?://)([^\"\']*)[\"\']'
     rewritten = re.sub(pattern, lambda m: f'{m.group(1)}{prefix}/{m.group(2)}"', text)
 
     # Inject a non-intrusive navigation banner back to Marketplace Hub
@@ -173,7 +173,7 @@ class SubAppPathRewriterASGI:
                             continue  # Will recalculate exact length
                         elif k.lower() == b"location":
                             loc = v.decode("utf-8", errors="ignore")
-                            if loc.startswith("/") and not loc.startswith(self.prefix + "/"):
+                            if loc.startswith("/") and not loc.startswith(self.prefix + "/") and not loc.startswith("/agent") and loc != "/":
                                 v = f"{self.prefix}{loc}".encode("utf-8")
                         new_headers.append((k, v))
 

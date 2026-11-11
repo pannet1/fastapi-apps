@@ -50,6 +50,11 @@ def initialize_master():
 # -------------------------------------------------------------
 # Agent & Machine-Readable API Routes
 # -------------------------------------------------------------
+@app.get("/agent")
+def redirect_agent_hub():
+    return RedirectResponse(url="/agent", status_code=303)
+
+
 @app.get("/api/agent/summary")
 def agent_summary(
     month: Optional[int] = Query(None, description="Month (1-12). If omitted, defaults to latest month with data."),
