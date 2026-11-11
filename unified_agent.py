@@ -71,7 +71,6 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
     # 2. Business Performance Summary
     db = am_db.SessionLocal()
     try:
-        seed_sample_data_if_empty(db)
         biz_summary = get_business_performance_summary(db, fmt="json")
     finally:
         db.close()

@@ -311,7 +311,6 @@ class FastAPIMarketplace:
             """Dedicated business performance breakdown (revenue, COGS, receivables, inventory, valuation)."""
             db = unified_agent.am_db.SessionLocal()
             try:
-                unified_agent.seed_sample_data_if_empty(db)
                 res = unified_agent.get_business_performance_summary(db, fmt=format)
             finally:
                 db.close()

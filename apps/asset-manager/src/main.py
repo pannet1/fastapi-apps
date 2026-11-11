@@ -36,11 +36,6 @@ app.include_router(asset.router)
 app.include_router(sales.router)
 
 
-# Seed initial starter data on first run if database is fresh
-with Session(engine) as _init_db:
-    seed_sample_data_if_empty(_init_db)
-
-
 @app.get("/agent")
 def redirect_agent_hub():
     return RedirectResponse(url="/agent", status_code=303)
@@ -172,8 +167,10 @@ def api_add_inventory(payload: InventoryInput, db: Session = Depends(get_db)):
 
 class SaleInput(BaseModel):
     customer_name: str
-    paid: float
-    item_ids: List[int]
+    paid: float = 0.0
+    inventory_id: Optional[int] = None
+    inventory_ids: Optional[List[int]] = None
+    item_ids: Optional[List[int]] = None
     sale_date: Optional[str] = None
 
 
@@ -187,11 +184,19 @@ def api_record_sale(payload: SaleInput, db: Session = Depends(get_db)):
         except Exception:
             sale_d = None
 
+    target_ids = []
+    if payload.inventory_id is not None:
+        target_ids.append(payload.inventory_id)
+    if payload.inventory_ids:
+        target_ids.extend(payload.inventory_ids)
+    if payload.item_ids:
+        target_ids.extend(payload.item_ids)
+
     res = record_sale(
         db,
         customer_name=payload.customer_name,
         paid=payload.paid,
-        item_ids=payload.item_ids,
+        inventory_ids=target_ids,
         sale_date=sale_d,
     )
     return res

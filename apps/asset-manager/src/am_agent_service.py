@@ -215,10 +215,12 @@ def record_sale(
     db: Session,
     customer_name: str,
     paid: float,
-    item_ids: List[int],
+    inventory_ids: Optional[List[int]] = None,
+    item_ids: Optional[List[int]] = None,
     sale_date: Optional[date] = None,
 ) -> Dict[str, Any]:
     """Records a sale and updates inventory status."""
+    target_ids = inventory_ids if inventory_ids is not None else (item_ids or [])
     customer = db.query(Customer).filter(Customer.name == customer_name.strip()).first()
     if not customer:
         customer = Customer(name=customer_name.strip())
@@ -226,7 +228,7 @@ def record_sale(
         db.commit()
         db.refresh(customer)
 
-    selected_items = db.query(Inventory).filter(Inventory.inventory_id.in_(item_ids)).all()
+    selected_items = db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all()
     if not selected_items:
         return {"status": "error", "message": "No valid inventory items selected"}
 
@@ -324,94 +326,5 @@ def add_fixed_asset(
 
 
 def seed_sample_data_if_empty(db: Session) -> bool:
-    """
-    Seeds initial realistic starter inventory and sales if database has 0 items and 0 sales.
-    Enables immediate out-of-the-box agent extraction of business performance.
-    """
-    item_count = db.query(Inventory).count()
-    sale_count = db.query(Sale).count()
-
-    if item_count > 0 or sale_count > 0:
-        return False
-
-    # Create Batch
-    batch = db.query(Batch).first()
-    if not batch:
-        batch = Batch(
-            description="Initial Premium Refurbished Electronics Batch",
-            supplier_name="Global Tech Wholesale",
-            date=date.today(),
-        )
-        db.add(batch)
-        db.commit()
-        db.refresh(batch)
-
-    # Create Fixed Assets
-    asset1 = Asset(name="Ultrasonic Cleaning Tank & Diagnostics Station", cost=1200.0, purchase_date=date(2025, 10, 15))
-    asset2 = Asset(name="Hot Air Rework Station & Soldering Lab", cost=850.0, purchase_date=date(2025, 11, 1))
-    db.add_all([asset1, asset2])
-    db.commit()
-
-    # Create Inventory Items
-    items_data = [
-        {"brand": "Dell", "model": "Latitude 7420 i7 16GB", "serial": "DL-7420-9812", "purchase_price": 320.0, "profit": "35%", "selling_price": 432.0},
-        {"brand": "Dell", "model": "Latitude 5410 i5 16GB", "serial": "DL-5410-1093", "purchase_price": 210.0, "profit": "40%", "selling_price": 294.0},
-        {"brand": "Lenovo", "model": "ThinkPad T14s Gen 2 AMD", "serial": "LN-T14S-4821", "purchase_price": 380.0, "profit": "30%", "selling_price": 494.0},
-        {"brand": "Lenovo", "model": "ThinkPad X1 Carbon Gen 8", "serial": "LN-X1C8-7742", "purchase_price": 420.0, "profit": "35%", "selling_price": 567.0},
-        {"brand": "Apple", "model": "MacBook Air M1 8GB 256GB", "serial": "AP-MBA-M1-31", "purchase_price": 490.0, "profit": "25%", "selling_price": 612.5},
-        {"brand": "Apple", "model": "MacBook Pro 14 M1 Pro 16GB", "serial": "AP-MBP-14-88", "purchase_price": 950.0, "profit": "25%", "selling_price": 1187.5},
-        {"brand": "HP", "model": "EliteBook 840 G8 i5 16GB", "serial": "HP-840G8-552", "purchase_price": 280.0, "profit": "35%", "selling_price": 378.0},
-    ]
-
-    created_items = []
-    for d in items_data:
-        inv = Inventory(
-            batch_id=batch.id,
-            brand=d["brand"],
-            model=d["model"],
-            serial=d["serial"],
-            purchase_price=d["purchase_price"],
-            intended_profit=d["profit"],
-            selling_price=d["selling_price"],
-            status="In-Stock",
-        )
-        db.add(inv)
-        created_items.append(inv)
-    db.commit()
-
-    # Create a completed sale and a partial payment sale
-    cust1 = Customer(name="Metro Corporate Solutions")
-    cust2 = Customer(name="Apex Digital Studio")
-    db.add_all([cust1, cust2])
-    db.commit()
-    db.refresh(cust1)
-    db.refresh(cust2)
-
-    # Sale 1: Sold Dell 5410 & HP 840G8 -> Total 672.0, fully paid 672.0
-    sale1 = Sale(customer_id=cust1.id, sale_date=date(2026, 1, 15), total_amount=672.0, amount_paid=672.0)
-    db.add(sale1)
-    db.commit()
-    db.refresh(sale1)
-
-    created_items[1].status = "Sold"
-    created_items[1].sale_id = sale1.id
-    created_items[6].status = "Sold"
-    created_items[6].sale_id = sale1.id
-
-    pay1 = PaymentLog(sale_id=sale1.id, amount_received=672.0, payment_date=date(2026, 1, 15), note="Bank Transfer Full")
-    db.add(pay1)
-
-    # Sale 2: Sold ThinkPad X1 Carbon Gen 8 -> Total 567.0, partial paid 300.0, unpaid 267.0
-    sale2 = Sale(customer_id=cust2.id, sale_date=date(2026, 2, 2), total_amount=567.0, amount_paid=300.0)
-    db.add(sale2)
-    db.commit()
-    db.refresh(sale2)
-
-    created_items[3].status = "Sold"
-    created_items[3].sale_id = sale2.id
-
-    pay2 = PaymentLog(sale_id=sale2.id, amount_received=300.0, payment_date=date(2026, 2, 2), note="Part Payment Advance")
-    db.add(pay2)
-
-    db.commit()
-    return True
+    """Disabled: Do not auto-seed dummy records. Respect real user data."""
+    return False

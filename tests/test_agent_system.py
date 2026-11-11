@@ -218,11 +218,24 @@ def test_human_and_agent_data_entry():
     )
     assert inv_res.status_code == 200
     assert inv_res.json()["status"] == "success"
+    created_inv_id = inv_res.json()["inventory_id"]
 
-    # 5. Agent records debtor payment
+    # 5. Agent records a sale with partial payment
+    sale_res = client.post(
+        "/asset-manager/api/agent/sales",
+        json={
+            "customer_name": f"Debtor Client {uuid.uuid4().hex[:4]}",
+            "paid": 200.0,
+            "inventory_id": created_inv_id,
+        },
+    )
+    assert sale_res.status_code == 200
+    created_sale_id = sale_res.json()["sale_id"]
+
+    # 6. Agent records debtor payment against the created sale
     pay_res = client.post(
         "/asset-manager/api/agent/payments",
-        json={"sale_id": 2, "amount": 50.0, "note": "Test Installment via Agent"},
+        json={"sale_id": created_sale_id, "amount": 50.0, "note": "Test Installment via Agent"},
     )
     assert pay_res.status_code == 200
     assert pay_res.json()["status"] == "success"
