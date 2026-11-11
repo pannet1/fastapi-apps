@@ -79,6 +79,7 @@ class Sale(Base):
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"))
     sale_date = Column(Date)
+    service_description = Column(String, nullable=True)  # For repair/diagnostics/service revenue
     total_amount = Column(Float)
     amount_paid = Column(
         Float, default=0.0
@@ -111,13 +112,17 @@ class Asset(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Auto-migrate vcard column if table already exists
+# Auto-migrate columns if table already exists
 with engine.connect() as _conn:
-    try:
-        _conn.execute(text("ALTER TABLE customers ADD COLUMN vcard TEXT"))
-        _conn.commit()
-    except Exception:
-        pass
+    for sql in [
+        "ALTER TABLE customers ADD COLUMN vcard TEXT",
+        "ALTER TABLE sales ADD COLUMN service_description VARCHAR",
+    ]:
+        try:
+            _conn.execute(text(sql))
+            _conn.commit()
+        except Exception:
+            pass
 
 
 def get_db():

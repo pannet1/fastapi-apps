@@ -338,3 +338,43 @@ def test_contact_search_api_and_phone_save():
     assert ledger_page.status_code == 200
     assert cust_phone in ledger_page.text
     assert "https://wa.me/919876543210" in ledger_page.text
+
+
+def test_pure_service_sale_and_revenue():
+    # Record a repair service sale with zero inventory items
+    cust_name = f"Repair Client {uuid.uuid4().hex[:4]}"
+    service_desc = "Ideapad 5 hinge standoff rebuild + antenna splice"
+    sale_resp = client.post(
+        "/asset-manager/process-sale",
+        data={
+            "customer_name": cust_name,
+            "service_description": service_desc,
+            "sale_price": 1400.0,
+            "paid": 1400.0,
+            "payment_note": "Paid in full via Cash",
+        },
+        follow_redirects=False,
+    )
+    # Fully paid -> redirects to /
+    assert sale_resp.status_code == 303
+    assert sale_resp.headers["location"] == "/"
+
+    # Also test partial payment service sale -> appears in ledger with service badge
+    cust_partial = f"Partial Client {uuid.uuid4().hex[:4]}"
+    sale_resp2 = client.post(
+        "/asset-manager/process-sale",
+        data={
+            "customer_name": cust_partial,
+            "service_description": "Motherboard short circuit repair",
+            "sale_price": 2500.0,
+            "paid": 1000.0,
+            "payment_note": "Advance via UPI",
+        },
+        follow_redirects=False,
+    )
+    assert sale_resp2.status_code == 303
+    assert "/ledger" in sale_resp2.headers["location"]
+
+    ledger_page = client.get("/asset-manager/ledger")
+    assert ledger_page.status_code == 200
+    assert "Motherboard short circuit repair" in ledger_page.text

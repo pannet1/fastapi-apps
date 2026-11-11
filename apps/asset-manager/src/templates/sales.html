@@ -44,10 +44,12 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Select In-Stock Laptop</label>
-                    <select name="inventory_id" id="inventory_id" required
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        Select In-Stock Laptop <span class="text-[10px] font-normal text-slate-500">(Optional if Service)</span>
+                    </label>
+                    <select name="inventory_id" id="inventory_id"
                             class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        <option value="" disabled selected>-- Choose a laptop from stock --</option>
+                        <option value="" selected>-- None (Pure Service / Repair Job) --</option>
                         {% for item in available_items %}
                         <option value="{{ item.inventory_id }}">
                             #{{ item.inventory_id }} - {{ item.brand }} {{ item.model }} (SN: {{ item.serial }})
@@ -58,19 +60,30 @@
 
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-                        Selling Price (₹) <span class="text-[10px] font-normal text-cyan-400">(Agreed Price Today)</span>
+                        Service / Repair Description <span class="text-[10px] font-normal text-amber-400">(For repairs/labor)</span>
+                    </label>
+                    <input type="text"
+                           id="service_description"
+                           name="service_description"
+                           placeholder="e.g. Ideapad 5 hinge standoff rebuild + antenna splice"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        Total Charge / Price (₹)
                     </label>
                     <input type="number"
                            step="0.01"
                            id="sale_price"
                            name="sale_price"
-                           placeholder="Enter agreed sale price..."
+                           placeholder="Enter total bill..."
                            required
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-cyan-500">
                 </div>
-            </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Amount Paid Today (₹)</label>
                     <input type="number"
@@ -86,7 +99,7 @@
                     <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Payment Mode / Reference Note</label>
                     <input type="text"
                            name="payment_note"
-                           placeholder="e.g. Cash, UPI/GPay, Bank Transfer, or Cheque"
+                           placeholder="e.g. Cash, UPI/GPay, Bank Transfer"
                            value="Cash"
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
                 </div>

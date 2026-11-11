@@ -168,9 +168,11 @@ def api_add_inventory(payload: InventoryInput, db: Session = Depends(get_db)):
 class SaleInput(BaseModel):
     customer_name: str
     paid: float = 0.0
+    sale_price: Optional[float] = None
     inventory_id: Optional[int] = None
     inventory_ids: Optional[List[int]] = None
     item_ids: Optional[List[int]] = None
+    service_description: Optional[str] = None
     sale_date: Optional[str] = None
 
 
@@ -197,6 +199,8 @@ def api_record_sale(payload: SaleInput, db: Session = Depends(get_db)):
         customer_name=payload.customer_name,
         paid=payload.paid,
         inventory_ids=target_ids,
+        sale_price=payload.sale_price,
+        service_description=payload.service_description,
         sale_date=sale_d,
     )
     return res

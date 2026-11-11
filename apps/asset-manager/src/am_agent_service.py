@@ -218,9 +218,11 @@ def record_sale(
     paid: float,
     inventory_ids: Optional[List[int]] = None,
     item_ids: Optional[List[int]] = None,
+    sale_price: Optional[float] = None,
+    service_description: Optional[str] = None,
     sale_date: Optional[date] = None,
 ) -> Dict[str, Any]:
-    """Records a sale and updates inventory status."""
+    """Records a sale (either physical inventory or pure service/repair) and updates ledger."""
     target_ids = inventory_ids if inventory_ids is not None else (item_ids or [])
     clean_name = customer_name.strip()
     all_customers = db.query(Customer).all()
@@ -231,15 +233,19 @@ def record_sale(
         db.commit()
         db.refresh(customer)
 
-    selected_items = db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all()
-    if not selected_items:
-        return {"status": "error", "message": "No valid inventory items selected"}
+    selected_items = db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all() if target_ids else []
+    if not selected_items and not service_description:
+        return {"status": "error", "message": "Either inventory items or a service description must be provided"}
 
-    total_bill = sum(item.selling_price for item in selected_items if item.selling_price)
+    if sale_price is not None:
+        total_bill = float(sale_price)
+    else:
+        total_bill = sum(item.selling_price for item in selected_items if item.selling_price) if selected_items else 0.0
 
     new_sale = Sale(
         customer_id=customer.id,
         sale_date=sale_date or date.today(),
+        service_description=service_description,
         total_amount=round(float(total_bill), 2),
         amount_paid=round(float(paid), 2),
     )
@@ -250,6 +256,8 @@ def record_sale(
     for item in selected_items:
         item.status = "Sold"
         item.sale_id = new_sale.id
+        if sale_price is not None and len(selected_items) == 1:
+            item.selling_price = round(float(sale_price), 2)
 
     if paid > 0:
         log = PaymentLog(

@@ -38,6 +38,11 @@
                     <td class="py-3.5 px-4 font-mono text-slate-400">{{ sale.sale_date }}</td>
                     <td class="py-3.5 px-4 font-bold text-white">
                         <div>{{ sale.customer.name }}</div>
+                        {% if sale.service_description %}
+                        <div class="mt-0.5 text-[11px] font-normal text-amber-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-screwdriver-wrench text-[10px]"></i> {{ sale.service_description }}
+                        </div>
+                        {% endif %}
                         {% if sale.customer and sale.customer.phone %}
                         <div class="mt-1 flex items-center gap-2 font-normal">
                             <a href="tel:{{ sale.customer.phone }}" class="text-[11px] font-mono text-cyan-400 hover:underline flex items-center gap-1">

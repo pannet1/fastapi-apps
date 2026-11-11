@@ -94,7 +94,8 @@ def process_sale(
     customer_name: str = Form(...),
     sale_price: float = Form(...),
     paid: float = Form(0.0),
-    inventory_id: int = Form(...),
+    inventory_id: Optional[int] = Form(None),
+    service_description: Optional[str] = Form(None),
     customer_phone: Optional[str] = Form(None),
     customer_vcard: Optional[str] = Form(None),
     payment_note: str = Form("Initial Payment"),
@@ -117,17 +118,13 @@ def process_sale(
         customer.vcard = customer_vcard.strip()
         db.commit()
 
-    item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
-    if not item:
-        return RedirectResponse(url="/sales", status_code=303)
-
-    # Record the actual agreed selling price at the time of sale
     total_bill = round(float(sale_price), 2)
-    item.selling_price = total_bill
+    clean_desc = (service_description or "").strip() or None
 
     new_sale = Sale(
         customer_id=customer.id,
         sale_date=date.today(),
+        service_description=clean_desc,
         total_amount=total_bill,
         amount_paid=paid,
     )
@@ -135,9 +132,13 @@ def process_sale(
     db.commit()
     db.refresh(new_sale)
 
-    # 1. Mark inventory item as sold
-    item.status = "Sold"
-    item.sale_id = new_sale.id
+    # 1. If a physical inventory unit was sold, mark as sold and record selling price
+    if inventory_id:
+        item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
+        if item:
+            item.status = "Sold"
+            item.sale_id = new_sale.id
+            item.selling_price = total_bill
 
     # 2. Log initial deposit into permanent PaymentLog audit trail
     if paid > 0:
