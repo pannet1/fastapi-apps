@@ -1,6 +1,6 @@
 # path: database.py
 from pathlib import Path
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, create_engine
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, create_engine, text
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,6 +46,8 @@ class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
     sales = relationship("Sale", back_populates="customer")
 
 
@@ -82,6 +84,17 @@ class Asset(Base):
     name = Column(String)
     cost = Column(Float)
     purchase_date = Column(Date)
+
+
+Base.metadata.create_all(bind=engine)
+
+# Auto-migrate columns if table already exists
+with engine.connect() as _conn:
+    try:
+        _conn.execute(text("ALTER TABLE customers ADD COLUMN phone VARCHAR"))
+        _conn.commit()
+    except Exception:
+        pass
 
 
 def get_db():

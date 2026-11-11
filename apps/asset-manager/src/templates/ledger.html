@@ -36,7 +36,20 @@
                 {% set balance = sale.total_amount - sale.amount_paid %}
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="py-3.5 px-4 font-mono text-slate-400">{{ sale.sale_date }}</td>
-                    <td class="py-3.5 px-4 font-bold text-white">{{ sale.customer.name }}</td>
+                    <td class="py-3.5 px-4 font-bold text-white">
+                        <div>{{ sale.customer.name }}</div>
+                        {% if sale.customer and sale.customer.phone %}
+                        <div class="mt-1 flex items-center gap-2 font-normal">
+                            <a href="tel:{{ sale.customer.phone }}" class="text-[11px] font-mono text-cyan-400 hover:underline flex items-center gap-1">
+                                <i class="fa-solid fa-phone text-[10px]"></i> {{ sale.customer.phone }}
+                            </a>
+                            {% set clean_phone = sale.customer.phone | replace(' ', '') | replace('+', '') | replace('-', '') %}
+                            <a href="https://wa.me/{{ clean_phone }}" target="_blank" class="text-[10px] text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                                <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                            </a>
+                        </div>
+                        {% endif %}
+                    </td>
                     <td class="py-3.5 px-4 text-right font-mono text-slate-300">₹{{ "{:,.2f}".format(sale.total_amount) }}</td>
                     <td class="py-3.5 px-4 text-right font-mono text-emerald-400 font-bold">₹{{ "{:,.2f}".format(sale.amount_paid) }}</td>
                     <td class="py-3.5 px-4 text-right font-mono font-bold text-rose-400">

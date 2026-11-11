@@ -291,3 +291,48 @@ def test_process_sale_and_initial_payment_log():
     assert len(matched) == 1
     assert matched[0]["amount_paid"] == 10000.0
     assert matched[0]["balance_due"] > 0
+
+
+def test_contact_search_api_and_phone_save():
+    # 1. Test search endpoint
+    search_res = client.get("/asset-manager/api/contacts/search?q=stephan")
+    assert search_res.status_code == 200
+    results = search_res.json()["results"]
+    assert isinstance(results, list)
+    if results:
+        assert "name" in results[0]
+        assert "phone" in results[0]
+
+    # 2. Add inventory and process sale with phone number
+    inv_res = client.post(
+        "/asset-manager/api/agent/inventory",
+        json={
+            "brand": "Lenovo",
+            "model": "ThinkPad T480",
+            "serial": f"T480-TEST-{uuid.uuid4().hex[:6]}",
+            "purchase_price": 14000.0,
+            "profit": "25%",
+        },
+    )
+    inv_id = inv_res.json()["inventory_id"]
+
+    cust_name = f"Phone Client {uuid.uuid4().hex[:4]}"
+    cust_phone = "+919876543210"
+    sale_resp = client.post(
+        "/asset-manager/process-sale",
+        data={
+            "customer_name": cust_name,
+            "customer_phone": cust_phone,
+            "paid": 5000.0,
+            "inventory_id": inv_id,
+            "payment_note": "Advance Deposit",
+        },
+        follow_redirects=False,
+    )
+    assert sale_resp.status_code == 303
+
+    # Check ledger HTML renders the phone and whatsapp link
+    ledger_page = client.get("/asset-manager/ledger")
+    assert ledger_page.status_code == 200
+    assert cust_phone in ledger_page.text
+    assert "https://wa.me/919876543210" in ledger_page.text

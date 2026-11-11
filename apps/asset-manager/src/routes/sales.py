@@ -2,11 +2,12 @@
 from datetime import date
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.templating import Jinja2Templates
 
+from contacts_service import search_thunderbird_contacts
 from database import (
     Customer,
     Inventory,
@@ -17,6 +18,47 @@ from database import (
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+@router.get("/api/contacts/search")
+def api_contact_search(
+    q: str = Query("", description="Search term for contacts"),
+    db: Session = Depends(get_db),
+):
+    q_clean = (q or "").strip()
+    if not q_clean:
+        return {"results": []}
+
+    # 1. Local Database Lookup (Persists independently of Thunderbird)
+    local_matches = db.query(Customer).filter(Customer.name.ilike(f"%{q_clean}%")).all()
+    results_map = {}
+    for c in local_matches:
+        results_map[c.name.lower()] = {
+            "name": c.name,
+            "phone": c.phone or "",
+            "source": "local",
+        }
+
+    # 2. Live Thunderbird Sync (Enriches or updates latest info if available)
+    tb_contacts = search_thunderbird_contacts(q_clean, limit=8)
+    for tb in tb_contacts:
+        name_key = tb["name"].lower()
+        tb_phone = tb.get("phone", "")
+        if name_key in results_map:
+            # Sync latest phone into local Customer record if changed in Thunderbird
+            local_cust = next((c for c in local_matches if c.name.lower() == name_key), None)
+            if local_cust and tb_phone and local_cust.phone != tb_phone:
+                local_cust.phone = tb_phone
+                db.commit()
+            results_map[name_key]["phone"] = tb_phone or results_map[name_key]["phone"]
+        else:
+            results_map[name_key] = {
+                "name": tb["name"],
+                "phone": tb_phone,
+                "source": "thunderbird",
+            }
+
+    return {"results": list(results_map.values())[:8]}
 
 
 @router.get("/sales")
@@ -51,15 +93,19 @@ def process_sale(
     customer_name: str = Form(...),
     paid: float = Form(0.0),
     inventory_id: int = Form(...),
+    customer_phone: Optional[str] = Form(None),
     payment_note: str = Form("Initial Payment"),
     db: Session = Depends(get_db),
 ):
     customer = db.query(Customer).filter(Customer.name == customer_name).first()
     if not customer:
-        customer = Customer(name=customer_name)
+        customer = Customer(name=customer_name, phone=customer_phone)
         db.add(customer)
         db.commit()
         db.refresh(customer)
+    elif customer_phone and not customer.phone:
+        customer.phone = customer_phone
+        db.commit()
 
     item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
     if not item:

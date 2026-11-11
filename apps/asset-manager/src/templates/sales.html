@@ -16,20 +16,28 @@
     <!-- Sale Form -->
     <div class="glass-card rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl mb-8">
         <form action="/process-sale" method="post" class="space-y-6">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Customer Name</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="relative">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                        Customer Name <span class="text-[10px] font-normal text-emerald-400">(Synced with Contacts)</span>
+                    </label>
                     <input type="text"
+                           id="customer_name"
                            name="customer_name"
-                           list="existing-customers"
-                           placeholder="Type customer name..."
+                           autocomplete="off"
+                           placeholder="Type customer or contact name..."
                            required
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
-                    <datalist id="existing-customers">
-                        {% for c in customers %}
-                        <option value="{{ c.name }}">
-                        {% endfor %}
-                    </datalist>
+                    <div id="contact-dropdown" class="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden hidden"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Phone / WhatsApp</label>
+                    <input type="text"
+                           id="customer_phone"
+                           name="customer_phone"
+                           placeholder="+91..."
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
                 </div>
 
                 <div>
@@ -72,4 +80,66 @@
         </form>
     </div>
 </div>
+
+<script>
+(() => {
+    const input = document.getElementById('customer_name');
+    const phoneInput = document.getElementById('customer_phone');
+    const dropdown = document.getElementById('contact-dropdown');
+    let debounceTimer;
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        const query = input.value.trim();
+        if (query.length < 2) {
+            dropdown.innerHTML = '';
+            dropdown.classList.add('hidden');
+            return;
+        }
+
+        debounceTimer = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const contacts = data.results || [];
+
+                if (contacts.length === 0) {
+                    dropdown.classList.add('hidden');
+                    return;
+                }
+
+                dropdown.innerHTML = contacts.map(c => `
+                    <div class="contact-item px-4 py-2.5 hover:bg-slate-800 cursor-pointer border-b border-slate-800/60 last:border-0 flex items-center justify-between"
+                         data-name="${c.name.replace(/"/g, '&quot;')}"
+                         data-phone="${(c.phone || '').replace(/"/g, '&quot;')}">
+                        <span class="text-white text-xs font-semibold">${c.name}</span>
+                        ${c.phone ? `<span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">${c.phone}</span>` : ''}
+                    </div>
+                `).join('');
+
+                dropdown.querySelectorAll('.contact-item').forEach(el => {
+                    el.addEventListener('click', () => {
+                        input.value = el.dataset.name;
+                        if (el.dataset.phone) {
+                            phoneInput.value = el.dataset.phone;
+                        }
+                        dropdown.classList.add('hidden');
+                    });
+                });
+
+                dropdown.classList.remove('hidden');
+            } catch (err) {
+                console.error('Contact search error:', err);
+            }
+        }, 180);
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.classList.add('hidden');
+        }
+    });
+})();
+</script>
 {% endblock %}
