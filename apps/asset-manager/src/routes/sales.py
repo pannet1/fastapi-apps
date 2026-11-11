@@ -1,16 +1,16 @@
 # path: routes/sales.py
 from datetime import date
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.templating import Jinja2Templates
 
-# path: routes/sales.py
 from database import (
     Customer,
     Inventory,
-    PaymentLog,  # Add to imports
+    PaymentLog,
     Sale,
     get_db,
 )
@@ -49,8 +49,10 @@ def view_ledger(request: Request, db: Session = Depends(get_db)):
 @router.post("/process-sale")
 def process_sale(
     customer_name: str = Form(...),
-    paid: float = Form(...),
-    item_ids: list[int] = Form(...),
+    paid: float = Form(0.0),
+    inventory_id: Optional[int] = Form(None),
+    item_ids: Optional[List[int]] = Form(None),
+    payment_note: str = Form("Initial Payment"),
     db: Session = Depends(get_db),
 ):
     customer = db.query(Customer).filter(Customer.name == customer_name).first()
@@ -60,8 +62,17 @@ def process_sale(
         db.commit()
         db.refresh(customer)
 
+    # Consolidate target item IDs from either single dropdown or multi-select
+    target_ids = []
+    if inventory_id is not None:
+        target_ids.append(inventory_id)
+    if item_ids:
+        for tid in item_ids:
+            if tid not in target_ids:
+                target_ids.append(tid)
+
     selected_items = (
-        db.query(Inventory).filter(Inventory.inventory_id.in_(item_ids)).all()
+        db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all()
     )
     total_bill = sum(
         item.selling_price for item in selected_items if item.selling_price
@@ -77,12 +88,23 @@ def process_sale(
     db.commit()
     db.refresh(new_sale)
 
+    # 1. Update status of sold inventory
     for item in selected_items:
         item.status = "Sold"
         item.sale_id = new_sale.id
 
+    # 2. Log initial deposit into permanent PaymentLog audit trail
+    if paid > 0:
+        initial_log = PaymentLog(
+            sale_id=new_sale.id,
+            amount_received=paid,
+            payment_date=date.today(),
+            note=payment_note,
+        )
+        db.add(initial_log)
+
     db.commit()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/ledger" if (total_bill - paid) > 0.01 else "/", status_code=303)
 
 
 @router.post("/update-payment")

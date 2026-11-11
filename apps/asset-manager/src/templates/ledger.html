@@ -48,6 +48,7 @@
                             <li>
                                 <span class="text-slate-500">{{ p.payment_date }}:</span>
                                 <span class="text-emerald-400 font-bold">₹{{ "{:,.2f}".format(p.amount_received or 0.0) }}</span>
+                                {% if p.note %}<span class="text-slate-400 text-[10px]">({{ p.note }})</span>{% endif %}
                             </li>
                             {% endfor %}
                         </ul>

@@ -236,3 +236,45 @@ def test_agent_hub_ui_page():
     assert "Combined Net Worth" in resp.text
     assert "Quick Data Entry" in resp.text
     assert "/agent/summary" in resp.text
+
+
+def test_process_sale_and_initial_payment_log():
+    # 1. Add an inventory item to sell
+    sn = f"TEST-LAPTOP-{uuid.uuid4().hex[:6]}"
+    inv_res = client.post(
+        "/asset-manager/api/agent/inventory",
+        json={
+            "brand": "Dell",
+            "model": "Latitude 7490",
+            "serial": sn,
+            "purchase_price": 18000.0,
+            "profit": "20%",
+        },
+    )
+    assert inv_res.status_code == 200
+    item_id = inv_res.json()["inventory_id"]
+
+    # 2. Process sale with single inventory_id and partial payment
+    cust_name = f"Test Buyer {uuid.uuid4().hex[:4]}"
+    sale_resp = client.post(
+        "/asset-manager/process-sale",
+        data={
+            "customer_name": cust_name,
+            "paid": 10000.0,
+            "inventory_id": item_id,
+            "payment_note": "Advance via UPI",
+        },
+        follow_redirects=False,
+    )
+    # Redirects to /ledger because balance remains
+    assert sale_resp.status_code == 303
+    assert "/ledger" in sale_resp.headers["location"]
+
+    # 3. Check debtors list shows remaining balance
+    debtors_resp = client.get("/asset-manager/api/agent/debtors")
+    assert debtors_resp.status_code == 200
+    debtors = debtors_resp.json()["debtors"]
+    matched = [d for d in debtors if d["customer"] == cust_name]
+    assert len(matched) == 1
+    assert matched[0]["amount_paid"] == 10000.0
+    assert matched[0]["balance_due"] > 0
