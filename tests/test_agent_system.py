@@ -273,6 +273,7 @@ def test_process_sale_and_initial_payment_log():
         "/asset-manager/process-sale",
         data={
             "customer_name": cust_name,
+            "sale_price": 21600.0,
             "paid": 10000.0,
             "inventory_id": inventory_id,
             "payment_note": "Advance via UPI",
@@ -323,6 +324,7 @@ def test_contact_search_api_and_phone_save():
         data={
             "customer_name": cust_name,
             "customer_phone": cust_phone,
+            "sale_price": 17500.0,
             "paid": 5000.0,
             "inventory_id": inv_id,
             "payment_note": "Advance Deposit",

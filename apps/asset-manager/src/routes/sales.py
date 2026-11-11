@@ -92,6 +92,7 @@ def view_ledger(request: Request, db: Session = Depends(get_db)):
 @router.post("/process-sale")
 def process_sale(
     customer_name: str = Form(...),
+    sale_price: float = Form(...),
     paid: float = Form(0.0),
     inventory_id: int = Form(...),
     customer_phone: Optional[str] = Form(None),
@@ -120,7 +121,9 @@ def process_sale(
     if not item:
         return RedirectResponse(url="/sales", status_code=303)
 
-    total_bill = item.selling_price or 0.0
+    # Record the actual agreed selling price at the time of sale
+    total_bill = round(float(sale_price), 2)
+    item.selling_price = total_bill
 
     new_sale = Sale(
         customer_id=customer.id,
