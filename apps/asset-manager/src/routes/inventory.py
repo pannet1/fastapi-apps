@@ -96,11 +96,18 @@ async def save_inventory(
 # --- ITEM EDIT & PHOTO MANAGEMENT ---
 
 @router.get("/edit-item/{item_id}", response_class=HTMLResponse)
-async def edit_item_view(item_id: int, request: Request, db: Session = Depends(get_db)):
-    item = db.query(Inventory).filter(Inventory.inventory_id == item_id).first()
+@router.get("/edit-inventory/{inventory_id}", response_class=HTMLResponse)
+async def edit_item_view(
+    request: Request,
+    item_id: Optional[int] = None,
+    inventory_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    target_id = inventory_id if inventory_id is not None else item_id
+    item = db.query(Inventory).filter(Inventory.inventory_id == target_id).first()
     
     # Filesystem check for photos
-    item_dir = os.path.join(UPLOAD_BASE, str(item_id))
+    item_dir = os.path.join(UPLOAD_BASE, str(target_id))
     photos = []
     if os.path.exists(item_dir):
         # Sort files numerically: 1.jpg, 2.jpg...
@@ -118,7 +125,8 @@ async def edit_item_view(item_id: int, request: Request, db: Session = Depends(g
 
 @router.post("/update-item")
 async def update_item(
-    item_id: int = Form(...),
+    inventory_id: Optional[int] = Form(None),
+    item_id: Optional[int] = Form(None),
     brand: str = Form(...),
     model: str = Form(...),
     serial: str = Form(...),
@@ -131,7 +139,8 @@ async def update_item(
     photos: List[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
-    item = db.query(Inventory).filter(Inventory.inventory_id == item_id).first()
+    target_id = inventory_id if inventory_id is not None else item_id
+    item = db.query(Inventory).filter(Inventory.inventory_id == target_id).first()
     
     # Update Database Fields
     item.brand = brand

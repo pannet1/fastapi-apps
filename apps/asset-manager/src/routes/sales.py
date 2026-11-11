@@ -51,6 +51,8 @@ def process_sale(
     customer_name: str = Form(...),
     paid: float = Form(0.0),
     inventory_id: Optional[int] = Form(None),
+    item_id: Optional[int] = Form(None),
+    inventory_ids: Optional[List[int]] = Form(None),
     item_ids: Optional[List[int]] = Form(None),
     payment_note: str = Form("Initial Payment"),
     db: Session = Depends(get_db),
@@ -62,14 +64,16 @@ def process_sale(
         db.commit()
         db.refresh(customer)
 
-    # Consolidate target item IDs from either single dropdown or multi-select
+    # Consolidate target IDs from any parameter alias (inventory_id, item_id, lists)
     target_ids = []
-    if inventory_id is not None:
-        target_ids.append(inventory_id)
-    if item_ids:
-        for tid in item_ids:
-            if tid not in target_ids:
-                target_ids.append(tid)
+    for single_id in [inventory_id, item_id]:
+        if single_id is not None and single_id not in target_ids:
+            target_ids.append(single_id)
+    for id_list in [inventory_ids, item_ids]:
+        if id_list:
+            for tid in id_list:
+                if tid not in target_ids:
+                    target_ids.append(tid)
 
     selected_items = (
         db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all()

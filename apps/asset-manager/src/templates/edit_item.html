@@ -19,6 +19,7 @@
     </div>
 
     <form action="/update-item" method="post" enctype="multipart/form-data" class="space-y-8">
+        <input type="hidden" name="inventory_id" value="{{ item.inventory_id }}">
         <input type="hidden" name="item_id" value="{{ item.inventory_id }}">
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
