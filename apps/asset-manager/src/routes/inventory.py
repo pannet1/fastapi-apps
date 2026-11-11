@@ -93,21 +93,17 @@ async def save_inventory(
     db.commit()
     return RedirectResponse(url=f"/add-items/{batch_pk}", status_code=303)
 
-# --- ITEM EDIT & PHOTO MANAGEMENT ---
+# --- INVENTORY EDIT & PHOTO MANAGEMENT ---
 
-@router.get("/edit-item/{item_id}", response_class=HTMLResponse)
 @router.get("/edit-inventory/{inventory_id}", response_class=HTMLResponse)
-async def edit_item_view(
-    request: Request,
-    item_id: Optional[int] = None,
-    inventory_id: Optional[int] = None,
-    db: Session = Depends(get_db),
-):
-    target_id = inventory_id if inventory_id is not None else item_id
-    item = db.query(Inventory).filter(Inventory.inventory_id == target_id).first()
+@router.get("/edit-item/{inventory_id}", response_class=HTMLResponse)
+async def edit_inventory_view(inventory_id: int, request: Request, db: Session = Depends(get_db)):
+    item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
+    if not item:
+        return RedirectResponse(url="/all-items", status_code=303)
     
     # Filesystem check for photos
-    item_dir = os.path.join(UPLOAD_BASE, str(target_id))
+    item_dir = os.path.join(UPLOAD_BASE, str(inventory_id))
     photos = []
     if os.path.exists(item_dir):
         # Sort files numerically: 1.jpg, 2.jpg...
@@ -125,8 +121,7 @@ async def edit_item_view(
 
 @router.post("/update-item")
 async def update_item(
-    inventory_id: Optional[int] = Form(None),
-    item_id: Optional[int] = Form(None),
+    inventory_id: int = Form(...),
     brand: str = Form(...),
     model: str = Form(...),
     serial: str = Form(...),
@@ -139,8 +134,9 @@ async def update_item(
     photos: List[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
-    target_id = inventory_id if inventory_id is not None else item_id
-    item = db.query(Inventory).filter(Inventory.inventory_id == target_id).first()
+    item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
+    if not item:
+        return RedirectResponse(url="/all-items", status_code=303)
     
     # Update Database Fields
     item.brand = brand
@@ -155,7 +151,7 @@ async def update_item(
 
     # Handle Multi-Photo Upload to Filesystem
     if photos:
-        item_dir = os.path.join(UPLOAD_BASE, str(item_id))
+        item_dir = os.path.join(UPLOAD_BASE, str(inventory_id))
         os.makedirs(item_dir, exist_ok=True)
         
         for photo in photos:
@@ -171,19 +167,16 @@ async def update_item(
                     shutil.copyfileobj(photo.file, buffer)
     
     db.commit()
-    return RedirectResponse(url=f"/edit-item/{item_id}", status_code=303)
+    return RedirectResponse(url=f"/edit-inventory/{inventory_id}", status_code=303)
 
-@router.post("/delete-photo/{item_id}/{filename}")
-async def delete_photo(item_id: int, filename: str):
+@router.post("/delete-photo/{inventory_id}/{filename}")
+async def delete_photo(inventory_id: int, filename: str):
     """Deletes a specific photo from the item's folder"""
-    file_path = os.path.join(UPLOAD_BASE, str(item_id), filename)
+    file_path = os.path.join(UPLOAD_BASE, str(inventory_id), filename)
     if os.path.exists(file_path):
         os.remove(file_path)
     
-    # Optional: Logic to 're-gap' files (e.g., if you delete 2.jpg, rename 3.jpg to 2.jpg)
-    # can be added here if you want to keep the sequence strictly gapless.
-    
-    return RedirectResponse(url=f"/edit-item/{item_id}", status_code=303)
+    return RedirectResponse(url=f"/edit-inventory/{inventory_id}", status_code=303)
 
 @router.get("/all-items", response_class=HTMLResponse)
 async def all_items_view(request: Request, db: Session = Depends(get_db)):

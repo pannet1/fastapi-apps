@@ -252,7 +252,7 @@ def test_process_sale_and_initial_payment_log():
         },
     )
     assert inv_res.status_code == 200
-    item_id = inv_res.json()["inventory_id"]
+    inventory_id = inv_res.json()["inventory_id"]
 
     # 2. Process sale with single inventory_id and partial payment
     cust_name = f"Test Buyer {uuid.uuid4().hex[:4]}"
@@ -261,7 +261,7 @@ def test_process_sale_and_initial_payment_log():
         data={
             "customer_name": cust_name,
             "paid": 10000.0,
-            "inventory_id": item_id,
+            "inventory_id": inventory_id,
             "payment_note": "Advance via UPI",
         },
         follow_redirects=False,

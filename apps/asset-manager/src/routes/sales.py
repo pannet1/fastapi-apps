@@ -50,10 +50,7 @@ def view_ledger(request: Request, db: Session = Depends(get_db)):
 def process_sale(
     customer_name: str = Form(...),
     paid: float = Form(0.0),
-    inventory_id: Optional[int] = Form(None),
-    item_id: Optional[int] = Form(None),
-    inventory_ids: Optional[List[int]] = Form(None),
-    item_ids: Optional[List[int]] = Form(None),
+    inventory_id: int = Form(...),
     payment_note: str = Form("Initial Payment"),
     db: Session = Depends(get_db),
 ):
@@ -64,23 +61,11 @@ def process_sale(
         db.commit()
         db.refresh(customer)
 
-    # Consolidate target IDs from any parameter alias (inventory_id, item_id, lists)
-    target_ids = []
-    for single_id in [inventory_id, item_id]:
-        if single_id is not None and single_id not in target_ids:
-            target_ids.append(single_id)
-    for id_list in [inventory_ids, item_ids]:
-        if id_list:
-            for tid in id_list:
-                if tid not in target_ids:
-                    target_ids.append(tid)
+    item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()
+    if not item:
+        return RedirectResponse(url="/sales", status_code=303)
 
-    selected_items = (
-        db.query(Inventory).filter(Inventory.inventory_id.in_(target_ids)).all()
-    )
-    total_bill = sum(
-        item.selling_price for item in selected_items if item.selling_price
-    )
+    total_bill = item.selling_price or 0.0
 
     new_sale = Sale(
         customer_id=customer.id,
@@ -92,10 +77,9 @@ def process_sale(
     db.commit()
     db.refresh(new_sale)
 
-    # 1. Update status of sold inventory
-    for item in selected_items:
-        item.status = "Sold"
-        item.sale_id = new_sale.id
+    # 1. Mark inventory item as sold
+    item.status = "Sold"
+    item.sale_id = new_sale.id
 
     # 2. Log initial deposit into permanent PaymentLog audit trail
     if paid > 0:
