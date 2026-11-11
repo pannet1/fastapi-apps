@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.templating import Jinja2Templates
 
-from contacts_service import search_thunderbird_contacts
+from contacts_service import build_vcard, search_thunderbird_contacts
 from database import (
     Customer,
     Inventory,
@@ -25,36 +25,37 @@ def api_contact_search(
     q: str = Query("", description="Search term for contacts"),
     db: Session = Depends(get_db),
 ):
-    q_clean = (q or "").strip()
+    q_clean = (q or "").strip().lower()
     if not q_clean:
         return {"results": []}
 
-    # 1. Local Database Lookup (Persists independently of Thunderbird)
-    local_matches = db.query(Customer).filter(Customer.name.ilike(f"%{q_clean}%")).all()
+    # 1. Local Database Lookup (filter by python property or vcard)
+    all_local = db.query(Customer).all()
+    local_matches = [c for c in all_local if q_clean in c.name.lower() or q_clean in c.phone.lower()]
     results_map = {}
     for c in local_matches:
         results_map[c.name.lower()] = {
             "name": c.name,
             "phone": c.phone or "",
+            "vcard": c.vcard or "",
             "source": "local",
         }
 
-    # 2. Live Thunderbird Sync (Enriches or updates latest info if available)
+    # 2. Live Thunderbird Sync
     tb_contacts = search_thunderbird_contacts(q_clean, limit=8)
     for tb in tb_contacts:
         name_key = tb["name"].lower()
         tb_phone = tb.get("phone", "")
+        tb_vcard = tb.get("vcard", "")
         if name_key in results_map:
-            # Sync latest phone into local Customer record if changed in Thunderbird
-            local_cust = next((c for c in local_matches if c.name.lower() == name_key), None)
-            if local_cust and tb_phone and local_cust.phone != tb_phone:
-                local_cust.phone = tb_phone
-                db.commit()
             results_map[name_key]["phone"] = tb_phone or results_map[name_key]["phone"]
+            if tb_vcard:
+                results_map[name_key]["vcard"] = tb_vcard
         else:
             results_map[name_key] = {
                 "name": tb["name"],
                 "phone": tb_phone,
+                "vcard": tb_vcard,
                 "source": "thunderbird",
             }
 
@@ -94,17 +95,25 @@ def process_sale(
     paid: float = Form(0.0),
     inventory_id: int = Form(...),
     customer_phone: Optional[str] = Form(None),
+    customer_vcard: Optional[str] = Form(None),
     payment_note: str = Form("Initial Payment"),
     db: Session = Depends(get_db),
 ):
-    customer = db.query(Customer).filter(Customer.name == customer_name).first()
+    clean_name = customer_name.strip()
+    all_customers = db.query(Customer).all()
+    customer = next((c for c in all_customers if c.name.lower() == clean_name.lower()), None)
+
+    vcard_payload = (customer_vcard or "").strip()
+    if not vcard_payload:
+        vcard_payload = build_vcard(clean_name, customer_phone)
+
     if not customer:
-        customer = Customer(name=customer_name, phone=customer_phone)
+        customer = Customer(vcard=vcard_payload)
         db.add(customer)
         db.commit()
         db.refresh(customer)
-    elif customer_phone and customer.phone != customer_phone:
-        customer.phone = customer_phone
+    elif customer_vcard and customer_vcard.strip() and customer.vcard != customer_vcard.strip():
+        customer.vcard = customer_vcard.strip()
         db.commit()
 
     item = db.query(Inventory).filter(Inventory.inventory_id == inventory_id).first()

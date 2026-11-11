@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import Asset, Batch, Customer, Inventory, PaymentLog, Sale
+from contacts_service import build_vcard
 
 
 def get_business_performance_summary(db: Session, fmt: str = "json") -> Dict[str, Any]:
@@ -221,9 +222,11 @@ def record_sale(
 ) -> Dict[str, Any]:
     """Records a sale and updates inventory status."""
     target_ids = inventory_ids if inventory_ids is not None else (item_ids or [])
-    customer = db.query(Customer).filter(Customer.name == customer_name.strip()).first()
+    clean_name = customer_name.strip()
+    all_customers = db.query(Customer).all()
+    customer = next((c for c in all_customers if c.name.lower() == clean_name.lower()), None)
     if not customer:
-        customer = Customer(name=customer_name.strip())
+        customer = Customer(vcard=build_vcard(clean_name))
         db.add(customer)
         db.commit()
         db.refresh(customer)

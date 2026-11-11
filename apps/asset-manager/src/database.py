@@ -1,6 +1,6 @@
 # path: database.py
 from pathlib import Path
-from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, create_engine, text
+from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -45,10 +45,33 @@ class Inventory(Base):
 class Customer(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    phone = Column(String, nullable=True)
-    email = Column(String, nullable=True)
+    vcard = Column(Text, nullable=False)
     sales = relationship("Sale", back_populates="customer")
+
+    @property
+    def name(self) -> str:
+        for line in (self.vcard or "").splitlines():
+            if line.startswith("FN:"):
+                return line[3:].strip()
+        return "Unknown"
+
+    @property
+    def phone(self) -> str:
+        for line in (self.vcard or "").splitlines():
+            if line.startswith("TEL"):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    return parts[1].strip()
+        return ""
+
+    @property
+    def email(self) -> str:
+        for line in (self.vcard or "").splitlines():
+            if line.startswith("EMAIL"):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    return parts[1].strip()
+        return ""
 
 
 class Sale(Base):
@@ -88,10 +111,10 @@ class Asset(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Auto-migrate columns if table already exists
+# Auto-migrate vcard column if table already exists
 with engine.connect() as _conn:
     try:
-        _conn.execute(text("ALTER TABLE customers ADD COLUMN phone VARCHAR"))
+        _conn.execute(text("ALTER TABLE customers ADD COLUMN vcard TEXT"))
         _conn.commit()
     except Exception:
         pass
