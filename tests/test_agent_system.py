@@ -163,7 +163,7 @@ def test_business_performance_subapp_agent_api():
 def test_human_and_agent_data_entry():
     import shutil
     from pathlib import Path
-    pf_csv = Path("apps/personal-finance/src/master_transactions.csv")
+    pf_csv = Path("apps/personal-finance/data/master_transactions.csv")
     backup = pf_csv.read_text(encoding="utf-8") if pf_csv.exists() else None
 
     try:

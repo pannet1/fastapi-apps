@@ -20,7 +20,7 @@ from pf_agent_service import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-MASTER_FILE = str((BASE_DIR / "master_transactions.csv").resolve())
+MASTER_FILE = str((BASE_DIR.parent / "data" / "master_transactions.csv").resolve())
 CATEGORIES_FILE = str((BASE_DIR / "categories.json").resolve())
 
 app = FastAPI(title="Personal Finance & Envelope Budget", description="Agent-ready personal finance & envelope budget manager")

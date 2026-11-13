@@ -54,7 +54,7 @@ except ImportError:
     seed_sample_data_if_empty = am_mod.seed_sample_data_if_empty
 
 
-PF_MASTER_FILE = str(PF_SRC / "master_transactions.csv")
+PF_MASTER_FILE = str(PF_SRC.parent / "data" / "master_transactions.csv")
 PF_CATEGORIES_FILE = str(PF_SRC / "categories.json")
 
 
