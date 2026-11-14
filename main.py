@@ -7,6 +7,7 @@ import sys
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 
 import unified_agent
@@ -115,8 +116,8 @@ def _rewrite_subapp_html(content: bytes, prefix: str) -> bytes:
     """
     prefix = prefix.rstrip("/")
     text = content.decode("utf-8", errors="ignore")
-    # Rewrite href='/...' action='/...' src='/...' except external URLs, already prefixed, or root /agent routes
-    pattern = r'((?:href|action|src)=[\"\'])/(?!/|agent(?:/|[\"\'])|' + re.escape(prefix.lstrip("/")) + r'/|https?://)([^\"\']*)[\"\']'
+    # Rewrite href='/...' action='/...' src='/...' except external URLs, already prefixed, static, or root /agent routes
+    pattern = r'((?:href|action|src)=[\"\'])/(?!/|agent(?:/|[\"\'])|static(?:/|[\"\'])|' + re.escape(prefix.lstrip("/")) + r'/|https?://)([^\"\']*)[\"\']'
     rewritten = re.sub(pattern, lambda m: f'{m.group(1)}{prefix}/{m.group(2)}"', text)
 
     # Inject a non-intrusive navigation banner back to Marketplace Hub
@@ -173,7 +174,7 @@ class SubAppPathRewriterASGI:
                             continue  # Will recalculate exact length
                         elif k.lower() == b"location":
                             loc = v.decode("utf-8", errors="ignore")
-                            if loc.startswith("/") and not loc.startswith(self.prefix + "/") and not loc.startswith("/agent") and loc != "/":
+                            if loc.startswith("/") and not loc.startswith(self.prefix + "/") and not loc.startswith("/agent") and not loc.startswith("/static") and loc != "/":
                                 v = f"{self.prefix}{loc}".encode("utf-8")
                         new_headers.append((k, v))
 
@@ -211,6 +212,10 @@ class FastAPIMarketplace:
     def __init__(self, title: str = "FastAPI App Marketplace", description: str = "Host and integrate any FastAPI application"):
         self.main_app = FastAPI(title=title, description=description)
         self.registry: List[Dict[str, Any]] = []
+
+        # Mount global static assets
+        (BASE_DIR / "static").mkdir(exist_ok=True)
+        self.main_app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
         # Catch-all middleware: If an unnamespaced link (e.g. /batch) hits the marketplace root,
         # redirect it transparently to the correct sub-application mount.
@@ -384,11 +389,7 @@ class FastAPIMarketplace:
                 <title>{title}</title>
                 <script src="https://cdn.tailwindcss.com"></script>
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-                <style>
-                    body {{ background-color: #0b0f19; color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
-                    .glass-card {{ background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.08); }}
-                    .glass-card:hover {{ border-color: rgba(99, 102, 241, 0.3); }}
-                </style>
+                <link rel="stylesheet" href="/static/styles.css" />
             </head>
             <body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
                 <!-- Navigation -->

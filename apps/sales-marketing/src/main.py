@@ -53,24 +53,6 @@ def startup():
 # ---------------------------------------------------------
 # API Routes
 # ---------------------------------------------------------
-@app.get("/")
-def root(request: Request):
-    accept = request.headers.get("accept", "")
-    if "text/html" in accept:
-        return RedirectResponse(url="/sales-marketing/dashboard")
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT * FROM campaigns WHERE status = 'active' LIMIT 1")
-    active_campaign = c.fetchone()
-    conn.close()
-    return {
-        "status": "online",
-        "app": "sales-marketing",
-        "system_time": datetime.datetime.now().isoformat(),
-        "active_campaign": dict(active_campaign) if active_campaign else None,
-        "dashboard": "/sales-marketing/dashboard"
-    }
-
 @app.get("/api/personas", tags=["Personas"], summary="List all 8 Breadwinner Personas")
 def list_personas():
     """Returns the 8 canonical Breadwinner Personas with speed to cash, revenue model, and bottlenecks."""
@@ -365,104 +347,25 @@ def disagree_campaign(slug: str):
 # ---------------------------------------------------------
 # Visual Dashboard UI
 # ---------------------------------------------------------
-DASH_CSS = """
-:root{
-  --bg:#f8fafc; --surface:#ffffff; --ink:#0f172a; --ink-dim:#334155; --muted:#475569; --line:#cbd5e1;
-  --accent:#047857; --accent-ink:#064e3b; --warn:#92400e; --warn-bg:#fef3c7;
-  --sky:#0369a1; --sky-bg:#e0f2fe; --teal:#0f766e; --teal-bg:#ccfbf1;
-  --amber:#92400e; --amber-bg:#fef3c7; --green:#047857; --green-bg:#d1fae5;
-  --red:#b91c1c; --red-bg:#fee2e2; --dark:#0f172a; --radius:10px;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  -webkit-font-smoothing:antialiased}
-a{color:inherit;text-decoration:none}
-.wrap{max-width:1160px;margin:0 auto;padding:0 24px}
-.topnav{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line)}
-.topnav .wrap{display:flex;align-items:center;gap:28px;height:56px}
-.brand{font-weight:900;font-size:16px;letter-spacing:-.3px;color:var(--ink)}
-.brand span{color:var(--accent)}
-.topnav nav{display:flex;gap:8px;font-size:13.5px;color:var(--muted);font-weight:700}
-.topnav nav a{cursor:pointer;padding:7px 14px;border-radius:8px;transition:all .15s ease;user-select:none;color:var(--ink-dim)}
-.topnav nav a:hover{color:var(--ink);background:#f1f5f9}
-.topnav nav a.active{color:var(--accent-ink);background:var(--teal-bg);font-weight:800;border:1px solid #99f6e4}
-.tab-pane{display:none}
-.tab-pane.active{display:block}
-.persona-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
-.pcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px;
-  display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 3px rgba(15,23,42,.05);transition:transform .15s ease,box-shadow .15s ease}
-.pcard:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.08)}
-.pcard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.pcard-title{font-size:16px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:8px;color:var(--ink)}
-.pcard-badge{font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;background:#f1f5f9;color:var(--ink-dim);border:1px solid var(--line);white-space:nowrap}
-.pcard-badge.fast{background:var(--green-bg);color:var(--accent-ink);border-color:#a7f3d0}
-.pcard-badge.med{background:var(--sky-bg);color:var(--sky);border-color:#bae6fd}
-.pcard-badge.retainer{background:var(--teal-bg);color:var(--teal);border-color:#99f6e4}
-.pcard-badge.frozen{background:var(--red-bg);color:var(--red);border-color:#fecaca}
-.pcard-val-badge{font-size:12px;font-weight:900;color:var(--accent-ink);background:var(--green-bg);border:1px solid #a7f3d0;padding:4px 10px;border-radius:99px;white-space:nowrap}
-.pcard-val-badge.zero{color:var(--muted);background:#f1f5f9;border-color:var(--line);font-weight:700}
-.pcard-desc{font-size:13.5px;color:var(--ink-dim);line-height:1.5}
-.pcard-model{font-size:12.5px;color:var(--ink-dim);background:#f8fafc;border:1px solid var(--line);padding:8px 12px;border-radius:6px}
-.pcard-model b{color:var(--ink);font-weight:800}
-.pcard-bneck{background:#fffbeb;border:1px solid #fcd34d;border-left:4px solid #d97706;padding:9px 12px;border-radius:0 6px 6px 0;font-size:12.5px;color:#78350f;margin-top:2px}
-.pcard-bneck b{color:#92400e;font-weight:800}
-.pcard-lead-box{background:var(--sky-bg);color:#0369a1;border:1px solid #bae6fd;border-radius:6px;padding:9px 12px;font-size:12.5px}
-.pcard-lead-box b{font-weight:800;color:#075985}
-.pcard-action-box{background:#fef3c7;border:1px solid #fde68a;border-left:4px solid var(--amber);padding:9px 12px;border-radius:0 6px 6px 0;font-size:12.5px;color:#78350f}
-.pcard-action-box b{font-weight:800}
-.prop-grid{display:flex;flex-direction:column;gap:14px}
-.prop-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;
-  display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 3px rgba(15,23,42,.04);transition:box-shadow .15s ease}
-.prop-card:hover{box-shadow:0 4px 14px rgba(15,23,42,.06)}
-.prop-card.agreed{border-left:4px solid var(--accent)}
-.prop-card.disagreed{opacity:0.7;border-left:4px solid var(--muted);background:#fafafa}
-.prop-card.proposed{border-left:4px solid var(--warn)}
-.prop-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.prop-sys{font-size:12px;color:var(--muted);text-transform:uppercase;font-weight:800;letter-spacing:.05em;display:flex;align-items:center;gap:6px}
-.prop-task{font-size:15.5px;font-weight:800;color:var(--ink);margin-top:2px}
-.prop-action{font-size:13.5px;color:var(--ink-dim);line-height:1.5}
-.prop-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding-top:10px;border-top:1px dashed var(--line)}
-.prop-meta{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
-.prop-meta b{color:var(--ink)}
-.prop-btns{display:flex;gap:8px;align-items:center}
-.btn-agree{background:var(--accent);color:#fff;border:none;font-weight:800;font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer}
-.btn-agree:hover{background:var(--accent-ink)}
-.btn-disagree{background:#f8fafc;color:var(--red);border:1px solid #fca5a5;font-weight:700;font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer}
-.btn-disagree:hover{background:#fee2e2}
-.badge-agreed{background:var(--green-bg);color:var(--accent-ink);font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;border:1px solid #a7f3d0}
-.badge-disagreed{background:#f1f5f9;color:var(--muted);font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:99px;border:1px solid var(--line)}
-.tab-count{background:var(--warn);color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;margin-left:4px}
-section{padding:24px 0 6px}
-.sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
-.sec-head h2{margin:0;font-size:18px;letter-spacing:-.2px;color:var(--ink);font-weight:800}
-.sec-head .note{font-size:13px;color:var(--muted)}
-.timeline{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px 20px;box-shadow:0 1px 3px rgba(15,23,42,.04)}
-.row{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
-.row:last-child{border-bottom:none}
-.timechip{background:var(--dark);color:#ffffff;font-size:12px;font-weight:800;border-radius:6px;
-  padding:4px 10px;min-width:54px;text-align:center;margin-top:2px}
-.row .what{flex:1}
-.row .what .task{font-weight:800;font-size:14.5px;color:var(--ink)}
-.row .what .detail{font-size:13.5px;color:var(--ink-dim);margin-top:2px}
-.row.done .task,.row.done .detail{color:#94a3b8;text-decoration:line-through}
-.row .ok{background:#f1f5f9;border:1px solid var(--line);color:var(--ink-dim);font-weight:800;font-size:12.5px;
-  padding:7px 14px;border-radius:6px;cursor:pointer;margin-top:2px}
-.row .ok.do{background:var(--accent);color:#ffffff;border:none}
-.row .ok:hover{filter:brightness(.92)}
-.btn{background:var(--dark);color:#fff;border:none;font-weight:800;font-size:12.5px;
-  padding:8px 14px;border-radius:6px;cursor:pointer}
-.btn:hover{background:#1e293b}
-.btn:active{transform:scale(.97)}
-.dot{width:8px;height:8px;border-radius:99px;background:var(--accent);flex:none}
-footer{padding:30px 0 40px;color:var(--muted);font-size:12.5px}
-@media(max-width:980px){.persona-grid{grid-template-columns:1fr}}
-@media(max-width:640px){.topnav nav{display:none}}
-"""
-
+@app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
+def dashboard(request: Request = None):
+    if request:
+        accept = request.headers.get("accept", "")
+        if "application/json" in accept and "text/html" not in accept:
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute("SELECT * FROM campaigns WHERE status = 'active' LIMIT 1")
+            active_campaign = c.fetchone()
+            conn.close()
+            return JSONResponse({
+                "status": "online",
+                "app": "sales-marketing",
+                "system_time": datetime.datetime.now().isoformat(),
+                "active_campaign": dict(active_campaign) if active_campaign else None,
+                "dashboard": "/sales-marketing/"
+            })
+
     resp_headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
@@ -652,60 +555,108 @@ def dashboard():
 
     mission_line = mission["value"] if mission else "Commercial revenue first."
     html = f"""<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sales &amp; Marketing — Execution Engine</title>
-<style>{DASH_CSS}</style></head>
-<body>
-<div class="topnav"><div class="wrap">
-  <a class="brand" href="#actions" onclick="showTab('actions')">sales<span>·</span>marketing</a>
-  <nav>
-    <a data-tab="actions" class="active" onclick="showTab('actions')">Field Actions {action_count_html}</a>
-    <a data-tab="campaigns" onclick="showTab('campaigns')">Campaigns</a>
-    <a data-tab="personas" onclick="showTab('personas')">Personas</a>
-  </nav>
-</div></div>
-<div class="wrap">
-  <section id="tab-actions" class="tab-pane active">
-    <div class="sec-head">
-      <div>
-        <h2>Today's Field Actions</h2>
-        <span class="note">The human executes these; the engine only records</span>
-      </div>
-      <button class="btn" onclick="toggleAddAction()" style="background:var(--accent);font-size:12px;padding:6px 14px">+ Add Field Action</button>
-    </div>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sales &amp; Marketing — Commercial Execution Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="min-h-screen flex flex-col bg-[#0b0f19] text-slate-100">
+  <!-- Primary App Navigation Bar -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <div class="flex items-center gap-6">
+          <a href="/" class="flex items-center gap-3 group">
+            <span class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-500 flex items-center justify-center text-xl shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition-transform">
+              🎯
+            </span>
+            <div>
+              <span class="text-base font-extrabold text-white tracking-tight block">Sales &amp; <span class="text-cyan-400">Marketing</span></span>
+              <span class="text-[10px] text-slate-400 font-mono block -mt-1">Commercial Execution Engine</span>
+            </div>
+          </a>
 
-    <!-- Quick Add Action Form -->
-    <div id="add-action-box" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;box-shadow:0 2px 6px rgba(15,23,42,.06)">
-      <div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:12px">Add Real-World Field Action</div>
-      <div style="display:grid;grid-template-columns:100px 1fr 2fr auto;gap:10px;align-items:center">
-        <input id="new-action-time" type="text" placeholder="10:00" style="padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;color:var(--ink);background:#ffffff" />
-        <input id="new-action-task" type="text" placeholder="Task name / Client" style="padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;color:var(--ink);background:#ffffff" />
-        <input id="new-action-detail" type="text" placeholder="Specific action / visit / call detail" style="padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-size:13px;color:var(--ink);background:#ffffff" />
-        <div style="display:flex;gap:6px">
-          <button class="btn" onclick="submitNewAction()" style="background:var(--accent);padding:8px 16px">Save</button>
-          <button class="btn" onclick="toggleAddAction()" style="background:#f1f5f9;color:var(--ink-dim);border:1px solid var(--line);padding:8px 12px">Cancel</button>
+          <nav class="flex items-center gap-1">
+            <a data-tab="actions" class="active px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5 cursor-pointer" onclick="showTab('actions')">
+              <i class="fa-solid fa-list-check text-cyan-400 text-xs"></i> Field Actions {action_count_html}
+            </a>
+            <a data-tab="campaigns" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5 cursor-pointer" onclick="showTab('campaigns')">
+              <i class="fa-solid fa-bullhorn text-amber-400 text-xs"></i> Campaigns
+            </a>
+            <a data-tab="personas" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition flex items-center gap-1.5 cursor-pointer" onclick="showTab('personas')">
+              <i class="fa-solid fa-users text-emerald-400 text-xs"></i> Personas
+            </a>
+          </nav>
+        </div>
+        <div class="flex items-center gap-3">
+          <a href="/sales-marketing/docs" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-code text-cyan-400"></i> API Docs
+          </a>
         </div>
       </div>
     </div>
+  </header>
 
-    <div class="timeline">{timeline_html}</div>
-  </section>
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section id="tab-actions" class="tab-pane active">
+      <div class="sec-head">
+        <div>
+          <h2>Today's Field Actions</h2>
+          <span class="note">The human executes these; the engine only records</span>
+        </div>
+        <button class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5" onclick="toggleAddAction()">
+          <i class="fa-solid fa-plus text-xs"></i> Add Field Action
+        </button>
+      </div>
 
-  {campaigns_tab_html}
+      <!-- Quick Add Action Form -->
+      <div id="add-action-box" class="glass-card p-5 mb-6" style="display:none;">
+        <div class="text-sm font-bold text-white mb-3">Add Real-World Field Action</div>
+        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr_2fr_auto] gap-3 items-center">
+          <input id="new-action-time" type="text" placeholder="10:00" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+          <input id="new-action-task" type="text" placeholder="Task name / Client" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+          <input id="new-action-detail" type="text" placeholder="Specific action / visit / call detail" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+          <div class="flex gap-2">
+            <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer" onclick="submitNewAction()">Save</button>
+            <button class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="toggleAddAction()">Cancel</button>
+          </div>
+        </div>
+      </div>
 
-  {personas_tab_html}
+      <div class="timeline">{timeline_html}</div>
+    </section>
 
-  <footer>sales-marketing execution engine · database-first · MASTER_INTENT.yaml and REBOOT_PLAN.yaml retired into sales.db</footer>
-</div>
+    {campaigns_tab_html}
+
+    {personas_tab_html}
+  </main>
+
+  <footer class="border-t border-slate-800/80 bg-slate-950/60 py-6 mt-12 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <p>Sales &amp; Marketing Execution Engine • Database-First</p>
+      <div class="flex items-center gap-4">
+        <span class="font-mono text-cyan-400">Commercial Cash Flow First</span>
+      </div>
+    </div>
+  </footer>
 <script>
 function showTab(name) {{
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.topnav nav a').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('header nav a').forEach(el => {{
+    el.classList.remove('active', 'bg-cyan-500/10', 'text-cyan-400', 'border', 'border-cyan-500/30');
+    el.classList.add('text-slate-300');
+  }});
   const target = document.getElementById('tab-' + name);
   if (target) target.classList.add('active');
-  const btn = document.querySelector('.topnav nav a[data-tab="' + name + '"]');
-  if (btn) btn.classList.add('active');
+  const btn = document.querySelector('header nav a[data-tab="' + name + '"]');
+  if (btn) {{
+    btn.classList.add('active', 'bg-cyan-500/10', 'text-cyan-400', 'border', 'border-cyan-500/30');
+    btn.classList.remove('text-slate-300');
+  }}
   history.replaceState(null, null, '#' + name);
 }}
 window.addEventListener('DOMContentLoaded', () => {{
