@@ -38,8 +38,8 @@ def extract_live_repo_description(repo_name: str) -> str:
     return ""
 
 app = FastAPI(
-    title="Sales & Marketing Execution Engine",
-    description="Time-aware campaign state machine and daily discovery KPI tracker.",
+    title="Breadwinner",
+    description="Commercial execution engine & breadwinner persona tracker.",
     version="1.0.0"
 )
 
@@ -181,8 +181,8 @@ def get_live_repo(repo_name: str):
 def agent_spec():
     return {
         "schema_version": "v1",
-        "name_for_model": "sales_marketing_engine",
-        "name_for_human": "Sales & Marketing Execution Engine",
+        "name_for_model": "breadwinner_engine",
+        "name_for_human": "Breadwinner Commercial Execution Engine",
         "description_for_model": (
             "Autonomous commercial execution and memory engine for AI agents. Governs 8 Breadwinner Personas, "
             "monetization models, bottlenecks, persona integer values, repo actions and objectives, commercial campaigns "
@@ -360,10 +360,10 @@ def dashboard(request: Request = None):
             conn.close()
             return JSONResponse({
                 "status": "online",
-                "app": "sales-marketing",
+                "app": "breadwinner",
                 "system_time": datetime.datetime.now().isoformat(),
                 "active_campaign": dict(active_campaign) if active_campaign else None,
-                "dashboard": "/sales-marketing/"
+                "dashboard": "/breadwinner/"
             })
 
     resp_headers = {
@@ -559,7 +559,7 @@ def dashboard(request: Request = None):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sales &amp; Marketing — Commercial Execution Engine</title>
+  <title>Breadwinner — Commercial Execution Engine</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="/static/styles.css" />
@@ -575,7 +575,7 @@ def dashboard(request: Request = None):
               🎯
             </span>
             <div>
-              <span class="text-base font-extrabold text-white tracking-tight block">Sales &amp; <span class="text-cyan-400">Marketing</span></span>
+              <span class="text-base font-extrabold text-white tracking-tight block">Bread<span class="text-cyan-400">winner</span></span>
               <span class="text-[10px] text-slate-400 font-mono block -mt-1">Commercial Execution Engine</span>
             </div>
           </a>
@@ -593,7 +593,7 @@ def dashboard(request: Request = None):
           </nav>
         </div>
         <div class="flex items-center gap-3">
-          <a href="/sales-marketing/docs" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+          <a href="/breadwinner/docs" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
             <i class="fa-solid fa-code text-cyan-400"></i> API Docs
           </a>
         </div>
@@ -637,7 +637,7 @@ def dashboard(request: Request = None):
 
   <footer class="border-t border-slate-800/80 bg-slate-950/60 py-6 mt-12 text-center text-xs text-slate-500">
     <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-      <p>Sales &amp; Marketing Execution Engine • Database-First</p>
+      <p>Breadwinner Execution Engine • Database-First</p>
       <div class="flex items-center gap-4">
         <span class="font-mono text-cyan-400">Commercial Cash Flow First</span>
       </div>
@@ -673,7 +673,7 @@ window.addEventListener('hashchange', () => {{
   }}
 }});
 
-const API_BASE = window.location.pathname.startsWith('/sales-marketing') ? '/sales-marketing' : '';
+const API_BASE = window.location.pathname.startsWith('/breadwinner') ? '/breadwinner' : (window.location.pathname.startsWith('/sales-marketing') ? '/sales-marketing' : '');
 
 async function agreeCampaign(slug) {{
   const r = await fetch(API_BASE + '/api/campaigns/' + slug + '/agree', {{method: 'POST'}});

@@ -567,7 +567,7 @@ class FastAPIMarketplace:
 
                         sub_app = getattr(module, "app", None)
                         if isinstance(sub_app, FastAPI):
-                            icon = "📊" if "asset" in item.name.lower() else ("💰" if "finance" in item.name.lower() else ("🎯" if "sales" in item.name.lower() else "📦"))
+                            icon = "📊" if "asset" in item.name.lower() else ("💰" if "finance" in item.name.lower() else ("🎯" if ("sales" in item.name.lower() or "breadwinner" in item.name.lower()) else "📦"))
                             self.register(sub_app, path=f"/{item.name}", icon=icon)
 
 
