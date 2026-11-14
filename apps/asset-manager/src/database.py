@@ -1,10 +1,12 @@
 # path: database.py
+import os
 from pathlib import Path
 from sqlalchemy import Column, Date, Float, ForeignKey, Integer, String, Text, create_engine, text
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "data" / "business.db"
+_env_db = os.environ.get("ASSET_MANAGER_DB_PATH")
+DB_PATH = Path(_env_db) if _env_db else BASE_DIR / "data" / "business.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
