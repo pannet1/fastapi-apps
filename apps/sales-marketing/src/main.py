@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import datetime
@@ -57,7 +57,7 @@ def startup():
 def root(request: Request):
     accept = request.headers.get("accept", "")
     if "text/html" in accept:
-        return RedirectResponse(url="./dashboard")
+        return RedirectResponse(url="/sales-marketing/dashboard")
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT * FROM campaigns WHERE status = 'active' LIMIT 1")
@@ -68,7 +68,7 @@ def root(request: Request):
         "app": "sales-marketing",
         "system_time": datetime.datetime.now().isoformat(),
         "active_campaign": dict(active_campaign) if active_campaign else None,
-        "dashboard": "./dashboard"
+        "dashboard": "/sales-marketing/dashboard"
     }
 
 @app.get("/api/personas", tags=["Personas"], summary="List all 8 Breadwinner Personas")
