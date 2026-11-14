@@ -51,7 +51,9 @@ def import_reboot_plan(conn, doc):
 def export_tasks_json(path=None):
     """Write tasks.json for the shutdown routine from active_actions (sorted by time)."""
     import json
-    path = path or os.environ.get("TASKS_JSON_PATH") or os.path.expanduser("~/tasks.json")
+    default_dir = Path(__file__).resolve().parent.parent.parent.parent / "data"
+    default_path = default_dir / "tasks.json"
+    path = path or os.environ.get("TASKS_JSON_PATH") or str(default_path)
     conn = get_connection()
     c = conn.cursor()
     rows = [dict(r) for r in c.execute("SELECT task, action, time FROM active_actions ORDER BY time")]
@@ -60,15 +62,7 @@ def export_tasks_json(path=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
-    # Also write to ~/firstmate/data/tasks.json if directory exists
-    fm_path = os.path.expanduser("~/firstmate/data/tasks.json")
-    if os.path.exists(os.path.dirname(fm_path)) and fm_path != path:
-        try:
-            with open(fm_path, "w", encoding="utf-8") as f:
-                json.dump(out, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
-    return path, len(out)
+    return str(path), len(out)
 
 
 def main():
