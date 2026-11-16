@@ -244,18 +244,16 @@ class ActionCreate(BaseModel):
     task: str
     action: str
     time: Optional[str] = None
-    repo: Optional[str] = None
     persona_slug: Optional[str] = None
-    campaign_slug: Optional[str] = None
 
 @app.post("/api/actions", tags=["Field Actions"], summary="Create a new field action")
 def create_action(item: ActionCreate):
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
-    INSERT INTO active_actions (task, action, time, status, repo, persona_slug, campaign_slug)
-    VALUES (?, ?, ?, 'pending', ?, ?, ?)
-    """, (item.task, item.action, item.time, item.repo, item.persona_slug, item.campaign_slug))
+    INSERT INTO active_actions (task, action, time, status, persona_slug)
+    VALUES (?, ?, ?, 'pending', ?)
+    """, (item.task, item.action, item.time, item.persona_slug))
     new_id = c.lastrowid
     conn.commit()
     conn.close()
@@ -266,9 +264,7 @@ class ActionUpdate(BaseModel):
     task: Optional[str] = None
     action: Optional[str] = None
     time: Optional[str] = None
-    repo: Optional[str] = None
     persona_slug: Optional[str] = None
-    campaign_slug: Optional[str] = None
 
 @app.delete("/api/actions/{action_id}", tags=["Field Actions"], summary="Delete a field action")
 def delete_action(action_id: int):
@@ -295,15 +291,13 @@ def update_action(action_id: int, update: ActionUpdate):
         raise HTTPException(status_code=404, detail="Action not found")
     cur = dict(row)
     c.execute("""
-    UPDATE active_actions SET task = ?, action = ?, time = ?, status = ?, repo = ?, persona_slug = ?, campaign_slug = ? WHERE id = ?
+    UPDATE active_actions SET task = ?, action = ?, time = ?, status = ?, persona_slug = ? WHERE id = ?
     """, (
         update.task if update.task is not None else cur["task"],
         update.action if update.action is not None else cur["action"],
         update.time if update.time is not None else cur["time"],
         update.status if update.status is not None else cur["status"],
-        update.repo if update.repo is not None else cur.get("repo"),
         update.persona_slug if update.persona_slug is not None else cur.get("persona_slug"),
-        update.campaign_slug if update.campaign_slug is not None else cur.get("campaign_slug"),
         action_id,
     ))
     conn.commit()
@@ -673,9 +667,7 @@ def dashboard(request: Request = None):
             <input id="edit-action-time" type="text" placeholder="Time (e.g. 10:00)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
             <input id="edit-action-task" type="text" placeholder="Task name / Client" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
             <textarea id="edit-action-detail" rows="3" placeholder="Specific action / visit / call detail" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"></textarea>
-            <input id="edit-action-repo" type="text" placeholder="Repo (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
             <input id="edit-action-persona" type="text" placeholder="Persona slug (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-            <input id="edit-action-campaign" type="text" placeholder="Campaign slug (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
             <select id="edit-action-status" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
               <option value="pending">pending</option>
               <option value="done">done</option>
@@ -769,9 +761,7 @@ function openEditAction(id) {{
   document.getElementById('edit-action-time').value = a.time || '';
   document.getElementById('edit-action-task').value = a.task || '';
   document.getElementById('edit-action-detail').value = a.action || '';
-  document.getElementById('edit-action-repo').value = a.repo || '';
   document.getElementById('edit-action-persona').value = a.persona_slug || '';
-  document.getElementById('edit-action-campaign').value = a.campaign_slug || '';
   document.getElementById('edit-action-status').value = a.status || 'pending';
   const m = document.getElementById('edit-action-modal');
   m.style.display = 'flex';
@@ -785,9 +775,7 @@ async function saveEditAction() {{
     time: document.getElementById('edit-action-time').value.trim(),
     task: document.getElementById('edit-action-task').value.trim(),
     action: document.getElementById('edit-action-detail').value.trim(),
-    repo: document.getElementById('edit-action-repo').value.trim() || null,
     persona_slug: document.getElementById('edit-action-persona').value.trim() || null,
-    campaign_slug: document.getElementById('edit-action-campaign').value.trim() || null,
     status: document.getElementById('edit-action-status').value
   }};
   const r = await fetch(API_BASE + '/api/actions/' + id, {{method: 'PUT', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(body)}});
