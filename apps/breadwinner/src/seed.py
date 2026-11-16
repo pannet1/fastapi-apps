@@ -12,54 +12,54 @@ def seed():
          "100% local-first, zero-cloud smart home automation retrofitted into Indian modular switchboards.", 
          "Medium (20-45 Days)", "Turnkey project fees + hardware margin",
          "Product architecture complete; missing physical 1x1 ft demo board for local interior designer visits and in-person closes.",
-         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 10000),
+         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 10000, 1),
         
         ("computer_service_technician", "Computer Service Technician",
          "Board-level diagnostics, schematic tracing, and in-browser boardview companion tools.",
          "Immediate upon repair (1-3 Days)", "Diagnostic fees & component-level repair billing (Free public tools)",
          "Completed zero-cost utility companion for ecomsense.in; needs traffic transition from schematics to paid offerings.",
-         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 15000),
+         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 5000, 2),
           
         ("domain_reseller_hosting", "Domain Reseller & Hosting Service Provider",
          "Low-latency Mumbai VPS hosting and domain infrastructure with instant UPI billing.",
          "Fast & Recurring", "Monthly recurring UPI subscriptions",
          "Infrastructure live; needs targeted outreach and forum links in retail trading communities for VPS conversions.",
-         "Indian retail algo traders in trading communities", 5000),
+         "Indian retail algo traders in trading communities", 3000, 3),
           
         ("used_computer_salesman", "Used Computer Salesman",
          "Procure, test, refurbish, and sell commercial business-grade laptops.",
          "Immediate upon stock (3-7 Days)", "Direct margin on refurbished hardware sales",
          "0 laptop inventory on hand; sourcing physical business-series inventory when capital is available.",
-         "0 inventory on hand - waiting on procurement capital", 0),
+         "0 inventory on hand - waiting on procurement capital", 0, 4),
 
         ("ui_ux_tester", "UI/UX & Web Application Tester",
          "Automated black-box testing, user journeys, browser automation.",
          "Retainer Based", "Monthly agency testing retainer",
          "Client (rachis.co.in) agreed to ₹30,000/month testing retainer; start date delayed indefinitely by client.",
-         "rachis.co.in contract agreed; pending client start date", 30000),
+         "rachis.co.in contract agreed; pending client start date", 30000, 5),
 
         ("business_automation_expert", "Business Automation Expert",
          "Commercial campaign state machine, 24/7 telemetry APIs, and pipeline automation.",
          "Operational Backbone", "Commercial sprint & telemetry automation",
          "Enforcing daily human outbound execution without relapsing into unmonetized code refactors or premature rewrites.",
-         "sales-marketing campaign sprint + fastapi-apps telemetry", 0),
+         "sales-marketing campaign sprint + fastapi-apps telemetry", 0, 6),
 
         ("swing_trader", "Swing Trader",
          "Passive swing trading system based on FTI teachings (Fibonacci accumulation, no stop loss).",
          "Market Driven", "Capital gains from Fibonacci swing accumulation",
          "Capital availability for Fibonacci accumulation; passive system, must step aside completely when cash is constrained.",
-         "fti-holdings - passive capital preservation", 3000),
+         "fti-holdings - passive capital preservation", 3000, 7),
 
         ("youtuber_content_creator", "YouTuber / Content Creator",
          "Automated high-frequency technical and educational video content creation.",
          "Medium to Long", "Top-of-funnel tech authority & lead generation",
          "Audience building required (60-120 days lead time); unmonetized top-of-funnel reach until consistent viewership is reached.",
-         "make-videos & open-converter automation daemon", 0)
+         "make-videos & open-converter automation daemon", 0, 8)
     ]
     for p in personas:
         c.execute("""
-        INSERT OR REPLACE INTO personas (slug, title, what_you_do, speed_to_cash, revenue_model, bottleneck, active_lead_summary, value)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO personas (slug, title, what_you_do, speed_to_cash, revenue_model, bottleneck, active_lead_summary, value, number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, p)
 
     # 2. Seed Campaigns (Active drives & AI proposals)
