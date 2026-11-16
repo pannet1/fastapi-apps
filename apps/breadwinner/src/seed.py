@@ -64,8 +64,6 @@ def seed():
 
     # 2. Seed Campaigns (Active drives & AI proposals)
     campaigns = [
-        ("b2b_repair_outreach", "Local B2B Board Diagnostics Outreach", "2026-11-10", "2026-11-20", 5000, "active",
-         "ecomsense.in", "schematics", "computer_service_technician", "Visit local repair shops to offer ₹500 motherboard triage"),
         ("stephan_switchboard_retrofit", "Mr. Stephan Apartment Retrofit", "2026-11-05", "2026-11-25", 10000, "active",
          "ApartmentThread", None, "home_automation_specialist", "Lock 50% advance for hall/bathroom modular switchboard installation"),
         ("mumbai_vps_algo_traders", "Retail Algo Trader Mumbai VPS Launch", "2026-11-15", "2026-12-15", 10000, "proposed",
