@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import datetime
-import sqlite3
+import json
 import os
 import re
 from sm_database import get_connection, init_db
@@ -270,6 +270,20 @@ class ActionUpdate(BaseModel):
     persona_slug: Optional[str] = None
     campaign_slug: Optional[str] = None
 
+@app.delete("/api/actions/{action_id}", tags=["Field Actions"], summary="Delete a field action")
+def delete_action(action_id: int):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM active_actions WHERE id = ?", (action_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Action not found")
+    c.execute("DELETE FROM active_actions WHERE id = ?", (action_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted", "action_id": action_id}
+
 @app.put("/api/actions/{action_id}", tags=["Field Actions"], summary="Update a field action")
 def update_action(action_id: int, update: ActionUpdate):
     conn = get_connection()
@@ -417,7 +431,11 @@ def dashboard(request: Request = None):
         <div class="row{' done' if done else ''}">
           <span class="timechip">{a['time'] or '--:--'}</span>
           <div class="what"><div class="task">{a['task']}</div><div class="detail">{a['action']}</div></div>
-          <button class="ok{' do' if not done else ''}" onclick="markAction({a['id']}, {'true' if not done else 'false'})">{'Done' if not done else 'Reopen'}</button>
+          <div class="flex gap-2">
+            <button class="ok{' do' if not done else ''}" onclick="markAction({a['id']}, {'true' if not done else 'false'})">{'Done' if not done else 'Reopen'}</button>
+            <button class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="openEditAction({a['id']})">Edit</button>
+            <button class="px-3 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="deleteAction({a['id']})">Delete</button>
+          </div>
         </div>"""
     if not timeline_html:
         timeline_html = '<div style="padding:14px;color:#94a3b8;font-size:13px">No active actions logged.</div>'
@@ -645,6 +663,30 @@ def dashboard(request: Request = None):
       </div>
 
       <div class="timeline">{timeline_html}</div>
+
+      <!-- Edit Action Modal -->
+      <div id="edit-action-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center;">
+        <div class="glass-card p-6" style="width:90%;max-width:560px;">
+          <div class="text-sm font-bold text-white mb-4">Edit Field Action</div>
+          <input type="hidden" id="edit-action-id" />
+          <div class="grid grid-cols-1 gap-3">
+            <input id="edit-action-time" type="text" placeholder="Time (e.g. 10:00)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            <input id="edit-action-task" type="text" placeholder="Task name / Client" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            <textarea id="edit-action-detail" rows="3" placeholder="Specific action / visit / call detail" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"></textarea>
+            <input id="edit-action-repo" type="text" placeholder="Repo (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            <input id="edit-action-persona" type="text" placeholder="Persona slug (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            <input id="edit-action-campaign" type="text" placeholder="Campaign slug (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            <select id="edit-action-status" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+              <option value="pending">pending</option>
+              <option value="done">done</option>
+            </select>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer" onclick="saveEditAction()">Save</button>
+            <button class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="closeEditAction()">Cancel</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     {campaigns_tab_html}
@@ -690,6 +732,7 @@ window.addEventListener('hashchange', () => {{
   }}
 }});
 
+const ACTIONS_DATA = __ACTIONS_JSON__;
 const API_BASE = window.location.pathname.startsWith('/breadwinner') ? '/breadwinner' : (window.location.pathname.startsWith('/sales-marketing') ? '/sales-marketing' : '');
 
 async function agreeCampaign(slug) {{
@@ -718,6 +761,42 @@ async function markAction(id, done) {{
   await fetch(API_BASE + '/api/actions/' + id, {{method: 'PUT', headers: {{'Content-Type': 'application/json'}},
     body: JSON.stringify({{status: done ? 'done' : 'pending'}})}});
   location.reload();
+}}
+function openEditAction(id) {{
+  const a = (ACTIONS_DATA || []).find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('edit-action-id').value = id;
+  document.getElementById('edit-action-time').value = a.time || '';
+  document.getElementById('edit-action-task').value = a.task || '';
+  document.getElementById('edit-action-detail').value = a.action || '';
+  document.getElementById('edit-action-repo').value = a.repo || '';
+  document.getElementById('edit-action-persona').value = a.persona_slug || '';
+  document.getElementById('edit-action-campaign').value = a.campaign_slug || '';
+  document.getElementById('edit-action-status').value = a.status || 'pending';
+  const m = document.getElementById('edit-action-modal');
+  m.style.display = 'flex';
+}}
+function closeEditAction() {{
+  document.getElementById('edit-action-modal').style.display = 'none';
+}}
+async function saveEditAction() {{
+  const id = document.getElementById('edit-action-id').value;
+  const body = {{
+    time: document.getElementById('edit-action-time').value.trim(),
+    task: document.getElementById('edit-action-task').value.trim(),
+    action: document.getElementById('edit-action-detail').value.trim(),
+    repo: document.getElementById('edit-action-repo').value.trim() || null,
+    persona_slug: document.getElementById('edit-action-persona').value.trim() || null,
+    campaign_slug: document.getElementById('edit-action-campaign').value.trim() || null,
+    status: document.getElementById('edit-action-status').value
+  }};
+  const r = await fetch(API_BASE + '/api/actions/' + id, {{method: 'PUT', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(body)}});
+  if (r.ok) {{ location.reload(); }}
+}}
+async function deleteAction(id) {{
+  if (!confirm('Delete this field action?')) return;
+  const r = await fetch(API_BASE + '/api/actions/' + id, {{method: 'DELETE'}});
+  if (r.ok) {{ location.reload(); }}
 }}
 function toggleAddAction() {{
   const el = document.getElementById('add-action-box');
@@ -750,4 +829,5 @@ async function exportTasks() {{
 }}
 </script>
 </body></html>"""
+    html = html.replace("__ACTIONS_JSON__", json.dumps(actions))
     return HTMLResponse(content=html, headers=resp_headers)
