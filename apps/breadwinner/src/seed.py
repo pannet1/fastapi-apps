@@ -12,61 +12,63 @@ def seed():
          "100% local-first, zero-cloud smart home automation retrofitted into Indian modular switchboards.", 
          "Medium (20-45 Days)", "Turnkey project fees + hardware margin",
          "Product architecture complete; missing physical 1x1 ft demo board for local interior designer visits and in-person closes.",
-         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 1000, 1),
+         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 10000),
         
         ("computer_service_technician", "Computer Service Technician",
          "Board-level diagnostics, schematic tracing, and in-browser boardview companion tools.",
          "Immediate upon repair (1-3 Days)", "Diagnostic fees & component-level repair billing (Free public tools)",
          "Completed zero-cost utility companion for ecomsense.in; needs traffic transition from schematics to paid offerings.",
-         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 1000, 2),
+         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 5000),
           
         ("domain_reseller_hosting", "Domain Reseller & Hosting Service Provider",
          "Low-latency Mumbai VPS hosting and domain infrastructure with instant UPI billing.",
          "Fast & Recurring", "Monthly recurring UPI subscriptions",
          "Infrastructure live; needs targeted outreach and forum links in retail trading communities for VPS conversions.",
-         "Indian retail algo traders in trading communities", 0, 3),
+         "Indian retail algo traders in trading communities", 10000),
           
         ("used_computer_salesman", "Used Computer Salesman",
          "Procure, test, refurbish, and sell commercial business-grade laptops.",
          "Immediate upon stock (3-7 Days)", "Direct margin on refurbished hardware sales",
          "0 laptop inventory on hand; sourcing physical business-series inventory when capital is available.",
-         "0 inventory on hand - waiting on procurement capital", 1000, 4),
+         "0 inventory on hand - waiting on procurement capital", 6000),
 
         ("ui_ux_tester", "UI/UX & Web Application Tester",
          "Automated black-box testing, user journeys, browser automation.",
          "Retainer Based", "Monthly agency testing retainer",
          "Client (rachis.co.in) agreed to ₹30,000/month testing retainer; start date delayed indefinitely by client.",
-         "rachis.co.in contract agreed; pending client start date", 30000, 5),
+         "rachis.co.in contract agreed; pending client start date", 30000),
 
         ("business_automation_expert", "Business Automation Expert",
          "Commercial campaign state machine, 24/7 telemetry APIs, and pipeline automation.",
          "Operational Backbone", "Commercial sprint & telemetry automation",
          "Enforcing daily human outbound execution without relapsing into unmonetized code refactors or premature rewrites.",
-         "sales-marketing campaign sprint + fastapi-apps telemetry", 0, 6),
+         "sales-marketing campaign sprint + fastapi-apps telemetry", 40000),
 
         ("swing_trader", "Swing Trader",
          "Passive swing trading system based on FTI teachings (Fibonacci accumulation, no stop loss).",
          "Market Driven", "Capital gains from Fibonacci swing accumulation",
          "Capital availability for Fibonacci accumulation; passive system, must step aside completely when cash is constrained.",
-         "fti-holdings - passive capital preservation", 0, 7),
+         "fti-holdings - passive capital preservation", 3000),
 
         ("youtuber_content_creator", "YouTuber / Content Creator",
          "Automated high-frequency technical and educational video content creation.",
          "Medium to Long", "Top-of-funnel tech authority & lead generation",
          "Audience building required (60-120 days lead time); unmonetized top-of-funnel reach until consistent viewership is reached.",
-         "make-videos & open-converter automation daemon", 0, 8)
+         "make-videos & open-converter automation daemon", 0)
     ]
     for p in personas:
         c.execute("""
-        INSERT OR REPLACE INTO personas (slug, title, what_you_do, speed_to_cash, revenue_model, bottleneck, active_lead_summary, value, number)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO personas (slug, title, what_you_do, speed_to_cash, revenue_model, bottleneck, active_lead_summary, value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, p)
 
     # 2. Seed Campaigns (Active drives & AI proposals)
     campaigns = [
+        ("b2b_repair_outreach", "Local B2B Board Diagnostics Outreach", "2026-11-10", "2026-11-20", 5000, "active",
+         "ecomsense.in", "schematics", "computer_service_technician", "Visit local repair shops to offer ₹500 motherboard triage"),
         ("stephan_switchboard_retrofit", "Mr. Stephan Apartment Retrofit", "2026-11-05", "2026-11-25", 10000, "active",
          "ApartmentThread", None, "home_automation_specialist", "Lock 50% advance for hall/bathroom modular switchboard installation"),
-        ("mumbai_vps_algo_traders", "Retail Algo Trader Mumbai VPS Launch", "2026-11-15", "2026-12-15", 10000, "completed",
+        ("mumbai_vps_algo_traders", "Retail Algo Trader Mumbai VPS Launch", "2026-11-15", "2026-12-15", 10000, "proposed",
          "ecomsense.in", "vps", "domain_reseller_hosting", "Broadcast low-latency VPS offer on Indian retail algo trading communities"),
         ("rachis_qa_retainer", "Rachis Agency Testing Retainer Activation", "2026-11-15", "2026-12-15", 30000, "proposed",
          "gate-nine", None, "ui_ux_tester", "Deliver 2 sample black-box verification test runs to unlock monthly agency retainer"),

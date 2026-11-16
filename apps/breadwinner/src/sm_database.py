@@ -28,8 +28,7 @@ def init_db():
         revenue_model TEXT NOT NULL,
         bottleneck TEXT,
         active_lead_summary TEXT,
-        value INTEGER NOT NULL DEFAULT 0,
-        number INTEGER
+        value INTEGER NOT NULL DEFAULT 0
     )
     """)
 
@@ -82,12 +81,6 @@ def init_db():
         value TEXT
     )
     """)
-
-    # Migration: add number column to personas if missing
-    try:
-        cursor.execute("ALTER TABLE personas ADD COLUMN number INTEGER")
-    except sqlite3.OperationalError:
-        pass
 
     conn.commit()
     conn.close()

@@ -507,8 +507,7 @@ def dashboard(request: Request = None):
     p_cards_html = ""
     for p in db_personas:
         slug = p["slug"]
-        num = p.get("number")
-        title = (f"{num}. " if num else "") + (p["title"] or "")
+        title = p["title"]
         what_you_do = p.get("what_you_do") or ""
         speed = p.get("speed_to_cash") or "—"
         model = p.get("revenue_model") or ""
