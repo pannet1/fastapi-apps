@@ -66,7 +66,7 @@ def seed():
     campaigns = [
         ("stephan_switchboard_retrofit", "Mr. Stephan Apartment Retrofit", "2026-11-05", "2026-11-25", 10000, "active",
          "ApartmentThread", None, "home_automation_specialist", "Lock 50% advance for hall/bathroom modular switchboard installation"),
-        ("mumbai_vps_algo_traders", "Retail Algo Trader Mumbai VPS Launch", "2026-11-15", "2026-12-15", 10000, "proposed",
+        ("mumbai_vps_algo_traders", "Retail Algo Trader Mumbai VPS Launch", "2026-11-15", "2026-12-15", 10000, "completed",
          "ecomsense.in", "vps", "domain_reseller_hosting", "Broadcast low-latency VPS offer on Indian retail algo trading communities"),
         ("rachis_qa_retainer", "Rachis Agency Testing Retainer Activation", "2026-11-15", "2026-12-15", 30000, "proposed",
          "gate-nine", None, "ui_ux_tester", "Deliver 2 sample black-box verification test runs to unlock monthly agency retainer"),

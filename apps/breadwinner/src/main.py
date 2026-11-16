@@ -311,7 +311,7 @@ def list_campaigns():
     c = conn.cursor()
     rows = [dict(r) for r in c.execute("""
         SELECT * FROM campaigns
-        ORDER BY CASE status WHEN 'proposed' THEN 1 WHEN 'active' THEN 2 ELSE 3 END, slug
+        ORDER BY CASE status WHEN 'proposed' THEN 1 WHEN 'active' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END, slug
     """)]
     conn.close()
     return {"campaigns": rows}
@@ -343,6 +343,20 @@ def disagree_campaign(slug: str):
     conn.commit()
     conn.close()
     return {"status": "disagreed", "campaign_slug": slug}
+
+@app.post("/api/campaigns/{slug}/complete")
+def complete_campaign(slug: str):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM campaigns WHERE slug = ?", (slug,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    c.execute("UPDATE campaigns SET status = 'completed' WHERE slug = ?", (slug,))
+    conn.commit()
+    conn.close()
+    return {"status": "completed", "campaign_slug": slug}
 
 # ---------------------------------------------------------
 # Visual Dashboard UI
@@ -389,7 +403,7 @@ def dashboard(request: Request = None):
 
     c.execute("""
         SELECT * FROM campaigns
-        ORDER BY CASE status WHEN 'proposed' THEN 1 WHEN 'active' THEN 2 ELSE 3 END, slug
+        ORDER BY CASE status WHEN 'proposed' THEN 1 WHEN 'active' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END, slug
     """)
     campaigns = [dict(r) for r in c.fetchall()]
     conn.close()
@@ -411,6 +425,7 @@ def dashboard(request: Request = None):
     # Build Campaigns Tab (AI Proposed Campaigns vs Active)
     num_proposed = len([c for c in campaigns if c["status"] == "proposed"])
     num_active = len([c for c in campaigns if c["status"] == "active"])
+    num_completed = len([c for c in campaigns if c["status"] == "completed"])
     
     camp_cards_html = ""
     for camp in campaigns:
@@ -432,7 +447,9 @@ def dashboard(request: Request = None):
             </div>
             """
         elif st == "active":
-            btn_markup = '<span class="badge-agreed">✓ Active Campaign</span>'
+            btn_markup = '<span class="badge-agreed">✓ Active Campaign</span> <button class="btn-disagree" onclick="completeCampaign(\'' + c_slug + '\')">✓ Mark Complete</button>'
+        elif st == "completed":
+            btn_markup = '<span class="badge-agreed" style="background:#16a34a">✓ Completed</span>'
         else:
             btn_markup = '<span class="badge-disagreed">✗ Disagreed</span>'
 
@@ -467,7 +484,7 @@ def dashboard(request: Request = None):
           <span class="note">AI-proposed commercial campaigns mapped to financial goals. Agree to activate and drive the daily field pipeline.</span>
         </div>
         <div style="font-size:12.5px;color:var(--muted)">
-          <b style="color:var(--warn)">{num_proposed}</b> proposed · <b style="color:var(--accent-ink)">{num_active}</b> active in flight
+          <b style="color:var(--warn)">{num_proposed}</b> proposed · <b style="color:var(--accent-ink)">{num_active}</b> active · <b style="color:#16a34a">{num_completed}</b> completed in flight
         </div>
       </div>
       <div class="prop-grid">{camp_cards_html}</div>
@@ -684,6 +701,13 @@ async function agreeCampaign(slug) {{
 }}
 async function disagreeCampaign(slug) {{
   const r = await fetch(API_BASE + '/api/campaigns/' + slug + '/disagree', {{method: 'POST'}});
+  if (r.ok) {{
+    location.hash = '#campaigns';
+    location.reload();
+  }}
+}}
+async function completeCampaign(slug) {{
+  const r = await fetch(API_BASE + '/api/campaigns/' + slug + '/complete', {{method: 'POST'}});
   if (r.ok) {{
     location.hash = '#campaigns';
     location.reload();
