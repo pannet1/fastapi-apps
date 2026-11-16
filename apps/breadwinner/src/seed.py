@@ -12,25 +12,25 @@ def seed():
          "100% local-first, zero-cloud smart home automation retrofitted into Indian modular switchboards.", 
          "Medium (20-45 Days)", "Turnkey project fees + hardware margin",
          "Product architecture complete; missing physical 1x1 ft demo board for local interior designer visits and in-person closes.",
-         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 10000, 1),
+         "Mr. Stephan - Hall (4+1) + Bathroom reed switch automation", 1000, 1),
         
         ("computer_service_technician", "Computer Service Technician",
          "Board-level diagnostics, schematic tracing, and in-browser boardview companion tools.",
          "Immediate upon repair (1-3 Days)", "Diagnostic fees & component-level repair billing (Free public tools)",
          "Completed zero-cost utility companion for ecomsense.in; needs traffic transition from schematics to paid offerings.",
-         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 5000, 2),
+         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 1000, 2),
           
         ("domain_reseller_hosting", "Domain Reseller & Hosting Service Provider",
          "Low-latency Mumbai VPS hosting and domain infrastructure with instant UPI billing.",
          "Fast & Recurring", "Monthly recurring UPI subscriptions",
          "Infrastructure live; needs targeted outreach and forum links in retail trading communities for VPS conversions.",
-         "Indian retail algo traders in trading communities", 3000, 3),
+         "Indian retail algo traders in trading communities", 0, 3),
           
         ("used_computer_salesman", "Used Computer Salesman",
          "Procure, test, refurbish, and sell commercial business-grade laptops.",
          "Immediate upon stock (3-7 Days)", "Direct margin on refurbished hardware sales",
          "0 laptop inventory on hand; sourcing physical business-series inventory when capital is available.",
-         "0 inventory on hand - waiting on procurement capital", 0, 4),
+         "0 inventory on hand - waiting on procurement capital", 1000, 4),
 
         ("ui_ux_tester", "UI/UX & Web Application Tester",
          "Automated black-box testing, user journeys, browser automation.",
@@ -48,7 +48,7 @@ def seed():
          "Passive swing trading system based on FTI teachings (Fibonacci accumulation, no stop loss).",
          "Market Driven", "Capital gains from Fibonacci swing accumulation",
          "Capital availability for Fibonacci accumulation; passive system, must step aside completely when cash is constrained.",
-         "fti-holdings - passive capital preservation", 3000, 7),
+         "fti-holdings - passive capital preservation", 0, 7),
 
         ("youtuber_content_creator", "YouTuber / Content Creator",
          "Automated high-frequency technical and educational video content creation.",
