@@ -18,19 +18,19 @@ def seed():
          "Board-level diagnostics, schematic tracing, and in-browser boardview companion tools.",
          "Immediate upon repair (1-3 Days)", "Diagnostic fees & component-level repair billing (Free public tools)",
          "Completed zero-cost utility companion for ecomsense.in; needs traffic transition from schematics to paid offerings.",
-         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 5000),
+         "Ideapad 5 15ITL05 Hinge & Antenna Repair + Local shop outreach", 15000),
           
         ("domain_reseller_hosting", "Domain Reseller & Hosting Service Provider",
          "Low-latency Mumbai VPS hosting and domain infrastructure with instant UPI billing.",
          "Fast & Recurring", "Monthly recurring UPI subscriptions",
          "Infrastructure live; needs targeted outreach and forum links in retail trading communities for VPS conversions.",
-         "Indian retail algo traders in trading communities", 10000),
+         "Indian retail algo traders in trading communities", 5000),
           
         ("used_computer_salesman", "Used Computer Salesman",
          "Procure, test, refurbish, and sell commercial business-grade laptops.",
          "Immediate upon stock (3-7 Days)", "Direct margin on refurbished hardware sales",
          "0 laptop inventory on hand; sourcing physical business-series inventory when capital is available.",
-         "0 inventory on hand - waiting on procurement capital", 6000),
+         "0 inventory on hand - waiting on procurement capital", 0),
 
         ("ui_ux_tester", "UI/UX & Web Application Tester",
          "Automated black-box testing, user journeys, browser automation.",
@@ -42,7 +42,7 @@ def seed():
          "Commercial campaign state machine, 24/7 telemetry APIs, and pipeline automation.",
          "Operational Backbone", "Commercial sprint & telemetry automation",
          "Enforcing daily human outbound execution without relapsing into unmonetized code refactors or premature rewrites.",
-         "sales-marketing campaign sprint + fastapi-apps telemetry", 40000),
+         "sales-marketing campaign sprint + fastapi-apps telemetry", 0),
 
         ("swing_trader", "Swing Trader",
          "Passive swing trading system based on FTI teachings (Fibonacci accumulation, no stop loss).",
