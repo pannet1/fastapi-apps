@@ -1,5 +1,4 @@
-# apps/personal-finance/src/database.py
-import os
+# apps/personal-finance/src/pf_database.py
 import re
 import sqlite3
 from datetime import datetime
@@ -11,7 +10,6 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_DIR = (BASE_DIR.parent / "data").resolve()
 DB_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DB_DIR / "finance.db"
-DEFAULT_CSV = DB_DIR / "master_transactions.csv"
 
 
 def get_connection() -> sqlite3.Connection:
@@ -20,8 +18,8 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
-def init_db(master_csv_path: Optional[str] = None):
-    """Initializes finance.db schema and indexes. Migrates from CSV if DB is empty."""
+def init_db(*args, **kwargs):
+    """Initializes finance.db schema and indexes."""
     conn = get_connection()
     with conn:
         conn.execute("""
@@ -40,27 +38,6 @@ def init_db(master_csv_path: Optional[str] = None):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(tran_date);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_particulars ON transactions(particulars);")
-
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM transactions")
-        count = cur.fetchone()[0]
-
-        csv_to_check = master_csv_path or str(DEFAULT_CSV)
-        if count == 0 and os.path.exists(csv_to_check):
-            df = pd.read_csv(csv_to_check)
-            if not df.empty:
-                for _, row in df.iterrows():
-                    d = float(row["Debit"]) if pd.notna(row.get("Debit")) else 0.0
-                    c = float(row["Credit"]) if pd.notna(row.get("Credit")) else 0.0
-                    b = float(row["Balance"]) if pd.notna(row.get("Balance")) else None
-                    cat = str(row["Category"]).strip() if pd.notna(row.get("Category")) else "Uncategorized"
-                    cur.execute(
-                        """
-                        INSERT OR IGNORE INTO transactions (tran_date, particulars, debit, credit, balance, category)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        """,
-                        (str(row["Tran Date"]).strip(), str(row["Particulars"]).strip(), d, c, b, cat),
-                    )
     conn.close()
 
 
@@ -95,17 +72,6 @@ def get_transactions_df(conn: Optional[sqlite3.Connection] = None) -> pd.DataFra
             conn.close()
 
 
-def sync_csv(csv_path: Optional[str] = None):
-    """Synchronizes SQLite database contents to master_transactions.csv."""
-    path = csv_path or str(DEFAULT_CSV)
-    try:
-        df = get_transactions_df()
-        out_df = df[["Tran Date", "Particulars", "Debit", "Credit", "Balance", "Category"]].copy()
-        out_df.to_csv(path, index=False)
-    except Exception:
-        pass
-
-
 def update_transaction_category(
     row_index: int,
     category: str,
@@ -133,7 +99,6 @@ def update_transaction_category(
         if not forward:
             with conn:
                 conn.execute("UPDATE transactions SET category = ? WHERE id = ?", (category, target_id))
-            sync_csv()
             return {
                 "status": "success",
                 "updated_count": 1,
@@ -174,7 +139,6 @@ def update_transaction_category(
                 [category] + matched_ids,
             )
 
-        sync_csv()
         return {
             "status": "success",
             "updated_count": len(matched_ids),
@@ -224,7 +188,6 @@ def add_single_transaction(
             )
             new_id = cur.lastrowid
 
-        sync_csv()
         return {
             "status": "success",
             "message": "Transaction added successfully",
@@ -243,7 +206,7 @@ def add_single_transaction(
 
 
 def bulk_insert_parsed_csv(parsed_df: pd.DataFrame) -> Dict[str, Any]:
-    """Bulk inserts transactions from a parsed statement dataframe into SQLite without duplicates."""
+    """Bulk inserts transactions from an uploaded statement dataframe directly into SQLite without duplicates."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -267,7 +230,6 @@ def bulk_insert_parsed_csv(parsed_df: pd.DataFrame) -> Dict[str, Any]:
         cur.execute("SELECT COUNT(*) FROM transactions")
         count_after = cur.fetchone()[0]
         added = count_after - count_before
-        sync_csv()
         return {"added": added, "total": count_after}
     finally:
         conn.close()

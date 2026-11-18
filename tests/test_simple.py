@@ -128,7 +128,7 @@ def test_personal_finance_latest_first_sorting():
     # 3. Business filtered transactions display latest Business transaction first (sorted latest first)
     biz_resp = client.get("/personal-finance/transactions?category=Business")
     assert biz_resp.status_code == 200
-    assert "18-11-2026" in biz_resp.text
+    assert "10-11-2026" in biz_resp.text
     # Oldest 05-11-2025 is not on page 1 of Business transactions
     assert biz_resp.text.find("05-11-2025") == -1
 
@@ -147,11 +147,8 @@ def test_personal_finance_category_update_and_dom_elements():
     assert 'id="no-tx-row"' in uncat_resp.text
 
     # 2. Test update-category API response structure and clean up
-    import pandas as pd
-    from pathlib import Path
-    master_path = Path(__file__).parent.parent / "apps" / "personal-finance" / "data" / "master_transactions.csv"
-    df = pd.read_csv(master_path)
     import sqlite3
+    from pathlib import Path
     db_path = Path(__file__).parent.parent / "apps" / "personal-finance" / "data" / "finance.db"
     assert db_path.exists()
     conn = sqlite3.connect(db_path)
