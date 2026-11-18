@@ -3,22 +3,36 @@
 {% block title %}Monthly Envelope Budget • Personal Finance{% endblock %}
 
 {% block content %}
-<!-- Month Selector Header -->
-<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
-    <a href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm">
-        <i class="fa-solid fa-chevron-left text-[10px]"></i> Previous Month
-    </a>
+<!-- Month / Period Selector Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
+    <div class="flex items-center gap-2">
+        <a href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
+           class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm"
+           title="Previous Month">
+            <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
+        </a>
+        <a href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
+           class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm"
+           title="Next Month">
+            Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
+        </a>
+    </div>
 
     <div class="text-center">
         <span class="text-xs uppercase font-bold text-amber-400 tracking-wider block">Active Budget Period</span>
         <h2 class="text-xl sm:text-2xl font-black text-white mt-0.5">{{ current_date }}</h2>
     </div>
 
-    <a href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm">
-        Next Month <i class="fa-solid fa-chevron-right text-[10px]"></i>
-    </a>
+    <!-- Quick Statement Period Dropdown -->
+    <form action="/" method="get" class="flex items-center gap-2">
+        <label class="text-[11px] font-semibold text-slate-400">Period:</label>
+        <select name="period" onchange="this.form.submit()" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer shadow-sm">
+            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
+            {% for p in available_periods %}
+            <option value="{{ p.val }}" {% if not is_all_time and current_period == p.val %}selected{% endif %}>{{ p.label }} ({{ p.count }})</option>
+            {% endfor %}
+        </select>
+    </form>
 </div>
 
 <!-- Envelope Cards Grid -->
@@ -69,9 +83,9 @@
                 <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
             </span>
             {% endif %}
-            <a href="/transactions?category={{ cat|urlencode }}&month={{ current_month }}&year={{ current_year }}"
+            <a href="/transactions?category={{ cat|urlencode }}"
                class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition flex items-center gap-1"
-               title="View {{ cat }} spending for {{ current_date }}">
+               title="View all {{ cat }} transactions">
                 View {{ cat }} →
             </a>
         </div>
@@ -88,7 +102,7 @@
         </span>
         <div>
             <div class="text-sm font-bold text-white flex items-center gap-2">
-                <span>Uncategorized Spending in {{ current_date }}</span>
+                <span>Uncategorized Spending ({{ current_date }})</span>
                 <span class="text-[11px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-500/40">{{ uncat_count }} Transactions</span>
             </div>
             <div class="text-xs text-slate-400 mt-0.5">
@@ -96,7 +110,7 @@
             </div>
         </div>
     </div>
-    <a href="/transactions?category=Uncategorized&month={{ current_month }}&year={{ current_year }}"
+    <a href="/transactions?category=Uncategorized"
        class="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-500/20 whitespace-nowrap">
         <i class="fa-solid fa-tags text-xs"></i> Classify Transactions →
     </a>

@@ -72,3 +72,26 @@ def test_personal_finance_mounted():
     uncat_txs = client.get("/personal-finance/transactions?category=Uncategorized")
     assert uncat_txs.status_code == 200
     assert "Uncategorized" in uncat_txs.text
+
+
+def test_personal_finance_envelope_budget_and_category_filtering():
+    # 1. Home page envelope cards
+    fin = client.get("/personal-finance/")
+    assert fin.status_code == 200
+    # Link for Business must point directly to transactions filtered by Business without month lock
+    assert 'href="/personal-finance/transactions?category=Business"' in fin.text
+    # Spent amount for Business is counted from actual debits (> 0)
+    assert "Business" in fin.text
+    assert "₹10,000.00" in fin.text  # Budget
+
+    # 2. View Business transactions
+    biz_resp = client.get("/personal-finance/transactions?category=Business")
+    assert biz_resp.status_code == 200
+    assert "Page 1 of" in biz_resp.text
+    assert "49 transactions" in biz_resp.text
+    assert '<option value="Business" selected>Business</option>' in biz_resp.text
+
+    # 3. Monthly period filtering
+    m_resp = client.get("/personal-finance/?period=2025-11")
+    assert m_resp.status_code == 200
+    assert "November 2025" in m_resp.text

@@ -344,7 +344,12 @@ async def handle_human_add_transaction(
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, month: int = None, year: int = None):
+async def index(
+    request: Request,
+    month: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    period: Optional[str] = Query(None),
+):
     initialize_master()
     df = pd.read_csv(MASTER_FILE)
     budgets = get_categories()
@@ -352,45 +357,99 @@ async def index(request: Request, month: int = None, year: int = None):
     df["Tran Date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
     valid_dates = df["Tran Date"].dropna()
 
-    if month is None or year is None:
-        if not valid_dates.empty:
-            latest = valid_dates.max()
-            month = latest.month
-            year = latest.year
+    # Extract available statement periods for selector
+    available_periods = []
+    if not valid_dates.empty:
+        for (y, m), grp in df.groupby([df["Tran Date"].dt.year, df["Tran Date"].dt.month], sort=False):
+            if pd.notna(y) and pd.notna(m):
+                available_periods.append({
+                    "year": int(y),
+                    "month": int(m),
+                    "val": f"{int(y)}-{int(m):02d}",
+                    "label": datetime(int(y), int(m), 1).strftime("%B %Y"),
+                    "count": len(grp),
+                })
+        available_periods.sort(key=lambda x: (x["year"], x["month"]), reverse=True)
+
+    # Determine period selection:
+    # 1. period="all" -> All Time statement total
+    # 2. period="YYYY-MM" -> specific statement month
+    # 3. month & year explicitly passed -> specific statement month
+    # 4. Default: All Time so all categorized spendings are immediately visible
+    is_all_time = False
+    if period:
+        p_clean = str(period).strip().lower()
+        if p_clean in ["all", "all time", "all_time"]:
+            is_all_time = True
+            month = None
+            year = None
         else:
-            now = datetime.now()
-            month = now.month
-            year = now.year
+            try:
+                parts = p_clean.split("-")
+                if len(parts) == 2:
+                    year = int(parts[0])
+                    month = int(parts[1])
+            except Exception:
+                pass
+    elif month is None and year is None:
+        is_all_time = True
 
-    month_df = df[
-        (df["Tran Date"].dt.month == month) & (df["Tran Date"].dt.year == year)
-    ].copy()
+    if is_all_time:
+        active_df = df.copy()
+        current_date = "All Time (Statement Total)"
+        current_period = "all"
+        current_month = None
+        current_year = None
+        prev_m = available_periods[0]["month"] if available_periods else 11
+        prev_y = available_periods[0]["year"] if available_periods else 2026
+        next_m = available_periods[-1]["month"] if available_periods else 11
+        next_y = available_periods[-1]["year"] if available_periods else 2025
+    else:
+        if month is None or year is None:
+            if not valid_dates.empty:
+                latest = valid_dates.max()
+                month = latest.month
+                year = latest.year
+            else:
+                now = datetime.now()
+                month = now.month
+                year = now.year
 
-    month_df["Debit"] = pd.to_numeric(month_df["Debit"], errors="coerce").fillna(0)
-    month_df["Credit"] = pd.to_numeric(month_df["Credit"], errors="coerce").fillna(0)
+        current_month = month
+        current_year = year
+        current_period = f"{year}-{month:02d}"
+        current_date = datetime(year, month, 1).strftime("%B %Y")
+        active_df = df[
+            (df["Tran Date"].dt.month == month) & (df["Tran Date"].dt.year == year)
+        ].copy()
+
+        prev_m = month - 1 if month > 1 else 12
+        prev_y = year if month > 1 else year - 1
+        next_m = month + 1 if month < 12 else 1
+        next_y = year if month < 12 else year + 1
+
+    active_df["Debit"] = pd.to_numeric(active_df["Debit"], errors="coerce").fillna(0)
+    active_df["Credit"] = pd.to_numeric(active_df["Credit"], errors="coerce").fillna(0)
 
     actual_report = {}
     for cat in budgets.keys():
-        cat_df = month_df[month_df["Category"].astype(str).str.lower() == cat.lower()]
+        cat_df = active_df[active_df["Category"].astype(str).str.strip().str.lower() == str(cat).strip().lower()]
 
         if cat.lower() == "income":
-            actual_report[cat] = cat_df["Credit"].sum() - cat_df["Debit"].sum()
+            # For Income envelope, net earned = Inflow Credit - Outflow Debit
+            actual_report[cat] = float(cat_df["Credit"].sum() - cat_df["Debit"].sum())
         else:
-            actual_report[cat] = cat_df["Debit"].sum() - cat_df["Credit"].sum()
+            # For Expense envelopes (Business, Home, etc.), spendings are Debits
+            actual_report[cat] = float(cat_df["Debit"].sum())
 
-    # Uncategorized spending check for this active month
+    # Uncategorized spending check for this active view
     uncat_mask = (
-        month_df["Category"].isna()
-        | month_df["Category"].astype(str).str.strip().str.lower().isin(["uncategorized", "", "none", "nan"])
+        active_df["Category"].isna()
+        | active_df["Category"].astype(str).str.strip().str.lower().isin(["uncategorized", "", "none", "nan"])
     )
-    uncat_df = month_df[uncat_mask]
-    uncat_spent = uncat_df["Debit"].sum() - uncat_df["Credit"].sum()
+    uncat_df = active_df[uncat_mask]
+    uncat_spent = float(uncat_df["Debit"].sum())
     uncat_count = len(uncat_df)
-
-    prev_month = month - 1 if month > 1 else 12
-    prev_year = year if month > 1 else year - 1
-    next_month = month + 1 if month < 12 else 1
-    next_year = year if month < 12 else year + 1
 
     return templates.TemplateResponse(
         "index.html",
@@ -398,18 +457,21 @@ async def index(request: Request, month: int = None, year: int = None):
             "request": request,
             "report": actual_report,
             "budgets": budgets,
-            "current_date": datetime(year, month, 1).strftime("%B %Y"),
-            "current_month": month,
-            "current_year": year,
+            "current_date": current_date,
+            "current_month": current_month,
+            "current_year": current_year,
+            "current_period": current_period,
+            "is_all_time": is_all_time,
+            "available_periods": available_periods,
             "uncat_spent": uncat_spent,
             "uncat_count": uncat_count,
             "categories": list(budgets.keys()),
             "today_date": datetime.now().strftime("%Y-%m-%d"),
             "nav": {
-                "prev_m": prev_month,
-                "prev_y": prev_year,
-                "next_m": next_month,
-                "next_y": next_year,
+                "prev_m": prev_m,
+                "prev_y": prev_y,
+                "next_m": next_m,
+                "next_y": next_y,
             },
         },
     )

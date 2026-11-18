@@ -144,8 +144,8 @@ def get_personal_finance_summary(
                 "status": "above_target" if actual >= budget_val else "below_target",
             })
         else:
-            # Net Expense = Debit - Credit
-            actual = float(cat_df["Debit"].sum() - cat_df["Credit"].sum())
+            # Expense spending = Debit
+            actual = float(cat_df["Debit"].sum())
             if actual > 0:
                 total_expenses += actual
             variance = round(budget_val - actual, 2)
