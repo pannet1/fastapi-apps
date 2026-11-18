@@ -199,6 +199,7 @@ def agent_spec():
             "save_persona_action": {"method": "POST", "path": "/api/persona-actions", "description": "Create or update a persona repo action with objective"},
             "repo_overview": {"method": "GET", "path": "/api/agent/repos/{repo_name}", "description": "Dynamically inspect live README/AGENTS.md for a given repo"},
             "campaigns": {"method": "GET", "path": "/api/campaigns", "description": "List commercial campaigns and decision gate states"},
+            "create_campaign": {"method": "POST", "path": "/api/campaigns", "description": "Formulate and propose a new commercial campaign"},
             "agree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/agree", "description": "Human decision gate: agree and activate campaign"},
             "disagree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/disagree", "description": "Human decision gate: reject campaign"},
             "actions": {"method": "GET", "path": "/api/actions", "description": "List today's chronological field schedule"},
@@ -313,6 +314,18 @@ def export_actions():
 # ---------------------------------------------------------
 # Campaigns API (Decision Gate: AI Proposes Campaigns -> Human Agrees/Disagrees)
 # ---------------------------------------------------------
+class CampaignCreate(BaseModel):
+    slug: str
+    name: str
+    start_date: str
+    end_date: str
+    target_revenue: float
+    status: str = "proposed"
+    repo: Optional[str] = None
+    module: Optional[str] = None
+    persona_slug: Optional[str] = None
+    rationale: Optional[str] = None
+
 @app.get("/api/campaigns")
 def list_campaigns():
     conn = get_connection()
@@ -323,6 +336,18 @@ def list_campaigns():
     """)]
     conn.close()
     return {"campaigns": rows}
+
+@app.post("/api/campaigns")
+def create_campaign(camp: CampaignCreate):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        INSERT OR REPLACE INTO campaigns (slug, name, start_date, end_date, target_revenue, status, repo, module, persona_slug, rationale)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (camp.slug, camp.name, camp.start_date, camp.end_date, camp.target_revenue, camp.status, camp.repo, camp.module, camp.persona_slug, camp.rationale))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "campaign": camp.dict()}
 
 @app.post("/api/campaigns/{slug}/agree")
 def agree_campaign(slug: str):
