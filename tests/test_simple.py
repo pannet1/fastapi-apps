@@ -95,3 +95,33 @@ def test_personal_finance_envelope_budget_and_category_filtering():
     m_resp = client.get("/personal-finance/?period=2025-11")
     assert m_resp.status_code == 200
     assert "November 2025" in m_resp.text
+
+
+def test_personal_finance_latest_first_sorting():
+    # 1. Home page defaults to latest period first (November 2026)
+    fin = client.get("/personal-finance/")
+    assert fin.status_code == 200
+    assert "November 2026" in fin.text
+
+    # Navigator: on latest month, Next is disabled or points to latest
+    assert "Prev" in fin.text
+    assert "month=10&amp;year=2026" in fin.text or "month=10&year=2026" in fin.text
+
+    # 2. Transactions table displays latest date first (November 2026 transactions at the top)
+    tx_resp = client.get("/personal-finance/transactions")
+    assert tx_resp.status_code == 200
+    assert "18-11-2026" in tx_resp.text
+    # 18-11-2026 appears before older transactions
+    idx_latest = tx_resp.text.find("18-11-2026")
+    idx_old = tx_resp.text.find("05-11-2025")
+    assert idx_latest != -1
+    # 05-11-2025 should not be on page 1 of latest-first transactions
+    assert idx_old == -1
+
+    # 3. Business filtered transactions display latest Business transaction first (09-02-2026)
+    biz_resp = client.get("/personal-finance/transactions?category=Business")
+    assert biz_resp.status_code == 200
+    idx_biz_latest = biz_resp.text.find("09-02-2026")
+    assert idx_biz_latest != -1
+    # Oldest 05-11-2025 is not on page 1 of Business transactions
+    assert biz_resp.text.find("05-11-2025") == -1

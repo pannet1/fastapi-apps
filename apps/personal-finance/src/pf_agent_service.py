@@ -181,7 +181,7 @@ def get_personal_finance_summary(
         month_df["Category"].isna()
         | month_df["Category"].astype(str).str.strip().str.lower().isin(["uncategorized", "", "none", "nan"])
     )
-    uncat_df = month_df[uncat_mask]
+    uncat_df = month_df[uncat_mask].sort_values(by=["Tran Date Parsed"], ascending=False)
     uncat_count = int(len(uncat_df))
     uncat_amount = round(float(uncat_df["Debit"].sum() + uncat_df["Credit"].sum()), 2)
 

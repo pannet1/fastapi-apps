@@ -3,19 +3,32 @@
 {% block title %}Monthly Envelope Budget • Personal Finance{% endblock %}
 
 {% block content %}
-<!-- Month / Period Selector Header -->
+<!-- Month / Period Selector Header (Sorted Latest First) -->
 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
     <div class="flex items-center gap-2">
-        <a href="/?month={{ nav.prev_m }}&year={{ nav.prev_y }}"
+        {% if nav.has_prev %}
+        <a href="{{ nav.prev_url }}"
            class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm"
-           title="Previous Month">
+           title="Previous: {{ nav.prev_label }}">
             <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
         </a>
-        <a href="/?month={{ nav.next_m }}&year={{ nav.next_y }}"
+        {% else %}
+        <span class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800/40 text-slate-500 rounded-xl text-xs font-bold border border-slate-800/60 cursor-not-allowed" title="Already on oldest period">
+            <i class="fa-solid fa-chevron-left text-[10px]"></i> Prev
+        </span>
+        {% endif %}
+
+        {% if nav.has_next %}
+        <a href="{{ nav.next_url }}"
            class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 shadow-sm"
-           title="Next Month">
+           title="Next: {{ nav.next_label }}">
             Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
         </a>
+        {% else %}
+        <span class="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-800/40 text-slate-500 rounded-xl text-xs font-bold border border-slate-800/60 cursor-not-allowed" title="Already on latest period">
+            Next <i class="fa-solid fa-chevron-right text-[10px]"></i>
+        </span>
+        {% endif %}
     </div>
 
     <div class="text-center">
@@ -23,14 +36,14 @@
         <h2 class="text-xl sm:text-2xl font-black text-white mt-0.5">{{ current_date }}</h2>
     </div>
 
-    <!-- Quick Statement Period Dropdown -->
+    <!-- Quick Statement Period Dropdown (Sorted Latest First) -->
     <form action="/" method="get" class="flex items-center gap-2">
         <label class="text-[11px] font-semibold text-slate-400">Period:</label>
         <select name="period" onchange="this.form.submit()" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer shadow-sm">
-            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
             {% for p in available_periods %}
             <option value="{{ p.val }}" {% if not is_all_time and current_period == p.val %}selected{% endif %}>{{ p.label }} ({{ p.count }})</option>
             {% endfor %}
+            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
         </select>
     </form>
 </div>

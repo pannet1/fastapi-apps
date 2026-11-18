@@ -93,6 +93,8 @@ def agent_transactions(
     if df.empty:
         return {"total": 0, "transactions": []}
 
+    df["_parsed_date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
+    df["_row_index"] = df.index
     filtered_df = df.copy()
     if uncategorized_only:
         mask = (
@@ -105,6 +107,8 @@ def agent_transactions(
 
     if q:
         filtered_df = filtered_df[filtered_df["Particulars"].astype(str).str.contains(re.escape(q), case=False, na=False)]
+
+    filtered_df = filtered_df.sort_values(by=["_parsed_date", "_row_index"], ascending=[False, False])
 
     total = len(filtered_df)
     start = (page - 1) * limit
@@ -279,6 +283,9 @@ async def view_transactions(
         text_mask = filtered_df["Particulars"].astype(str).str.contains(q_clean, case=False, na=False)
         filtered_df = filtered_df[text_mask]
 
+    # Sort everything to latest first
+    filtered_df = filtered_df.sort_values(by=["_parsed_date", "_row_index"], ascending=[False, False])
+
     total_rows = len(filtered_df)
 
     # Compute net spent / received on the filtered subset
@@ -375,7 +382,7 @@ async def index(
     # 1. period="all" -> All Time statement total
     # 2. period="YYYY-MM" -> specific statement month
     # 3. month & year explicitly passed -> specific statement month
-    # 4. Default: All Time so all categorized spendings are immediately visible
+    # 4. Default: LATEST statement month first (navigator sorted latest first)
     is_all_time = False
     if period:
         p_clean = str(period).strip().lower()
@@ -392,7 +399,17 @@ async def index(
             except Exception:
                 pass
     elif month is None and year is None:
-        is_all_time = True
+        if available_periods:
+            year = available_periods[0]["year"]
+            month = available_periods[0]["month"]
+        elif not valid_dates.empty:
+            latest = valid_dates.max()
+            month = latest.month
+            year = latest.year
+        else:
+            now = datetime.now()
+            month = now.month
+            year = now.year
 
     if is_all_time:
         active_df = df.copy()
@@ -400,16 +417,25 @@ async def index(
         current_period = "all"
         current_month = None
         current_year = None
-        prev_m = available_periods[0]["month"] if available_periods else 11
-        prev_y = available_periods[0]["year"] if available_periods else 2026
-        next_m = available_periods[-1]["month"] if available_periods else 11
-        next_y = available_periods[-1]["year"] if available_periods else 2025
+        first_m = available_periods[0]["month"] if available_periods else 11
+        first_y = available_periods[0]["year"] if available_periods else 2026
+        nav = {
+            "has_prev": len(available_periods) > 0,
+            "prev_url": f"/?month={first_m}&year={first_y}",
+            "prev_label": available_periods[0]["label"] if available_periods else "",
+            "has_next": False,
+            "next_url": "#",
+            "next_label": "",
+            "prev_m": first_m,
+            "prev_y": first_y,
+            "next_m": first_m,
+            "next_y": first_y,
+        }
     else:
         if month is None or year is None:
-            if not valid_dates.empty:
-                latest = valid_dates.max()
-                month = latest.month
-                year = latest.year
+            if available_periods:
+                month = available_periods[0]["month"]
+                year = available_periods[0]["year"]
             else:
                 now = datetime.now()
                 month = now.month
@@ -423,10 +449,53 @@ async def index(
             (df["Tran Date"].dt.month == month) & (df["Tran Date"].dt.year == year)
         ].copy()
 
-        prev_m = month - 1 if month > 1 else 12
-        prev_y = year if month > 1 else year - 1
-        next_m = month + 1 if month < 12 else 1
-        next_y = year if month < 12 else year + 1
+        # Step through available periods sorted latest-first [2026-11, 2026-10, ...]
+        cur_idx = None
+        for i, p in enumerate(available_periods):
+            if p["year"] == year and p["month"] == month:
+                cur_idx = i
+                break
+
+        if cur_idx is not None:
+            # Prev in time (older month) is cur_idx + 1
+            has_prev = (cur_idx + 1) < len(available_periods)
+            prev_p = available_periods[cur_idx + 1] if has_prev else None
+            prev_url = f"/?month={prev_p['month']}&year={prev_p['year']}" if prev_p else "#"
+            prev_label = prev_p["label"] if prev_p else ""
+            prev_m = prev_p["month"] if prev_p else month
+            prev_y = prev_p["year"] if prev_p else year
+
+            # Next in time (newer month towards latest) is cur_idx - 1
+            has_next = (cur_idx - 1) >= 0
+            next_p = available_periods[cur_idx - 1] if has_next else None
+            next_url = f"/?month={next_p['month']}&year={next_p['year']}" if next_p else "#"
+            next_label = next_p["label"] if next_p else ""
+            next_m = next_p["month"] if next_p else month
+            next_y = next_p["year"] if next_p else year
+        else:
+            prev_m = month - 1 if month > 1 else 12
+            prev_y = year if month > 1 else year - 1
+            next_m = month + 1 if month < 12 else 1
+            next_y = year if month < 12 else year + 1
+            has_prev = True
+            has_next = True
+            prev_url = f"/?month={prev_m}&year={prev_y}"
+            next_url = f"/?month={next_m}&year={next_y}"
+            prev_label = f"{prev_m}/{prev_y}"
+            next_label = f"{next_m}/{next_y}"
+
+        nav = {
+            "has_prev": has_prev,
+            "prev_url": prev_url,
+            "prev_label": prev_label,
+            "has_next": has_next,
+            "next_url": next_url,
+            "next_label": next_label,
+            "prev_m": prev_m,
+            "prev_y": prev_y,
+            "next_m": next_m,
+            "next_y": next_y,
+        }
 
     active_df["Debit"] = pd.to_numeric(active_df["Debit"], errors="coerce").fillna(0)
     active_df["Credit"] = pd.to_numeric(active_df["Credit"], errors="coerce").fillna(0)
@@ -467,12 +536,7 @@ async def index(
             "uncat_count": uncat_count,
             "categories": list(budgets.keys()),
             "today_date": datetime.now().strftime("%Y-%m-%d"),
-            "nav": {
-                "prev_m": prev_m,
-                "prev_y": prev_y,
-                "next_m": next_m,
-                "next_y": next_y,
-            },
+            "nav": nav,
         },
     )
 
