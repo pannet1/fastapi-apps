@@ -58,3 +58,17 @@ def test_personal_finance_mounted():
     # Transactions page
     txs = client.get("/personal-finance/transactions")
     assert txs.status_code == 200
+
+    # Verify home page envelope view links include category filter parameters
+    assert "/personal-finance/transactions?category=" in fin.text
+
+    # Category filtered transactions page
+    cat_txs = client.get("/personal-finance/transactions?category=Beverages&month=1&year=2026")
+    assert cat_txs.status_code == 200
+    assert "Beverages" in cat_txs.text
+    assert "Active Filter:" in cat_txs.text
+
+    # Uncategorized filter
+    uncat_txs = client.get("/personal-finance/transactions?category=Uncategorized")
+    assert uncat_txs.status_code == 200
+    assert "Uncategorized" in uncat_txs.text

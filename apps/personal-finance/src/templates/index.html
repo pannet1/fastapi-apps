@@ -69,11 +69,37 @@
                 <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
             </span>
             {% endif %}
-            <a href="/transactions" class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition">
-                View →
+            <a href="/transactions?category={{ cat|urlencode }}&month={{ current_month }}&year={{ current_year }}"
+               class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition flex items-center gap-1"
+               title="View {{ cat }} spending for {{ current_date }}">
+                View {{ cat }} →
             </a>
         </div>
     </div>
     {% endfor %}
 </div>
+
+{% if uncat_count > 0 %}
+<!-- Uncategorized Spending Alert -->
+<div class="mt-8 bg-slate-900 border border-amber-500/30 rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-3.5">
+        <span class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-lg">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </span>
+        <div>
+            <div class="text-sm font-bold text-white flex items-center gap-2">
+                <span>Uncategorized Spending in {{ current_date }}</span>
+                <span class="text-[11px] font-mono bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-500/40">{{ uncat_count }} Transactions</span>
+            </div>
+            <div class="text-xs text-slate-400 mt-0.5">
+                Total unclassified: <strong class="text-amber-400 font-mono">₹{{ "{:,.2f}".format(uncat_spent) }}</strong>. These transactions do not count toward specific envelopes until assigned.
+            </div>
+        </div>
+    </div>
+    <a href="/transactions?category=Uncategorized&month={{ current_month }}&year={{ current_year }}"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-500/20 whitespace-nowrap">
+        <i class="fa-solid fa-tags text-xs"></i> Classify Transactions →
+    </a>
+</div>
+{% endif %}
 {% endblock %}

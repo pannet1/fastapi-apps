@@ -68,9 +68,84 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <span class="text-xs font-mono text-slate-400">Page {{ page }} of {{ total_pages }}</span>
+            <span class="text-xs font-mono text-slate-400">Page {{ page }} of {{ total_pages }} ({{ total_rows }} transactions)</span>
         </div>
     </div>
+
+    <!-- Filters & Search Bar -->
+    <div class="p-4 bg-slate-900/90 border-b border-slate-800">
+        <form action="/transactions" method="get" class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2">
+                <label class="text-[11px] font-semibold text-slate-400">Envelope:</label>
+                <select name="category" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+                    <option value="" {% if not current_category %}selected{% endif %}>All Envelopes</option>
+                    <option value="Uncategorized" {% if current_category == 'Uncategorized' %}selected{% endif %}>⚠️ Uncategorized</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if current_category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <label class="text-[11px] font-semibold text-slate-400">Period:</label>
+                <select name="period" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+                    <option value="" {% if not current_period %}selected{% endif %}>All Time</option>
+                    {% for p in available_periods %}
+                    <option value="{{ p.val }}" {% if current_period == p.val %}selected{% endif %}>{{ p.label }} ({{ p.count }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                <input type="text" name="q" value="{{ current_q }}" placeholder="Search description/vendor..."
+                       class="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500" />
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button type="submit" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-filter text-[10px] mr-1"></i> Apply
+                </button>
+                {% if current_category or current_period or current_month or current_q %}
+                <a href="/transactions" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition border border-slate-700">
+                    ✕ Reset
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Active Filter Summary Banner -->
+    {% if current_category or current_period or current_month or current_q %}
+    <div class="px-6 py-3 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-slate-400 font-semibold">Active Filter:</span>
+            {% if current_category %}
+            <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold">
+                {{ current_category }}
+            </span>
+            {% endif %}
+            {% if current_month and current_year %}
+            <span class="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
+                {{ current_month }}/{{ current_year }}
+            </span>
+            {% elif current_year %}
+            <span class="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold">
+                Year: {{ current_year }}
+            </span>
+            {% endif %}
+            {% if current_q %}
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                "{{ current_q }}"
+            </span>
+            {% endif %}
+            <span class="text-slate-400 font-mono">({{ total_rows }} matched)</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-slate-400">Total Net Spending: <strong class="{% if filter_net < 0 %}text-emerald-400{% else %}text-white{% endif %} font-mono text-sm font-bold">₹{{ "{:,.2f}".format(filter_net) }}</strong></span>
+            <a href="/transactions" class="text-xs text-rose-400 hover:text-rose-300 font-semibold transition">✕ Clear</a>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Table Container -->
     <div class="overflow-x-auto">
@@ -97,7 +172,7 @@
                         {{ ("₹" + "{:,.2f}".format(row['Credit'])) if row['Credit'] == row['Credit'] and row['Credit'] != 0 else "" }}
                     </td>
                     <td class="py-3 px-4">
-                        <select onchange="updateCat({{ start_index + loop.index0 }}, this.value)"
+                        <select onchange="updateCat({{ row['_row_index'] }}, this.value)"
                                 class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
                             <option selected>{{ row['Category'] }}</option>
                             {% for cat in categories %}
@@ -109,19 +184,32 @@
                     </td>
                 </tr>
                 {% endfor %}
+                {% if not transactions %}
+                <tr>
+                    <td colspan="5" class="py-8 text-center text-slate-500 text-xs italic">
+                        No transactions found matching the selected filter criteria.
+                    </td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
 
     <!-- Pagination -->
     {% if total_pages > 1 %}
+    {% set query_str = "" %}
+    {% if current_category %}{% set query_str = query_str + "&category=" + current_category|urlencode %}{% endif %}
+    {% if current_period %}{% set query_str = query_str + "&period=" + current_period %}{% endif %}
+    {% if current_month and not current_period %}{% set query_str = query_str + "&month=" + current_month|string %}{% endif %}
+    {% if current_year and not current_period %}{% set query_str = query_str + "&year=" + current_year|string %}{% endif %}
+    {% if current_q %}{% set query_str = query_str + "&q=" + current_q|urlencode %}{% endif %}
     <div class="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
-        <a href="/transactions?page={{ page - 1 }}"
+        <a href="/transactions?page={{ page - 1 }}{{ query_str }}"
            class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white {% if page <= 1 %}opacity-40 pointer-events-none{% endif %} transition">
             ← Previous
         </a>
         <span class="text-xs font-mono text-slate-400">Page {{ page }} of {{ total_pages }}</span>
-        <a href="/transactions?page={{ page + 1 }}"
+        <a href="/transactions?page={{ page + 1 }}{{ query_str }}"
            class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white {% if page >= total_pages %}opacity-40 pointer-events-none{% endif %} transition">
             Next →
         </a>

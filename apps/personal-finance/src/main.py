@@ -207,14 +207,91 @@ async def add_category(request: Request):
 
 
 @app.get("/transactions", response_class=HTMLResponse)
-async def view_transactions(request: Request, page: int = 1, size: int = 20):
+async def view_transactions(
+    request: Request,
+    page: int = 1,
+    size: int = 20,
+    category: Optional[str] = Query(None),
+    period: Optional[str] = Query(None),
+    month: Optional[int] = Query(None),
+    year: Optional[int] = Query(None),
+    q: Optional[str] = Query(None),
+):
     initialize_master()
     df = pd.read_csv(MASTER_FILE)
 
-    total_rows = len(df)
+    # Retain the exact original row index in master CSV file for updates
+    df["_row_index"] = df.index
+
+    # Parse dates for filtering and period grouping
+    df["_parsed_date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
+
+    # Handle combined period string (e.g. "2026-11") from form dropdown
+    if period and str(period).strip():
+        try:
+            parts = str(period).strip().split("-")
+            if len(parts) == 2:
+                year = int(parts[0])
+                month = int(parts[1])
+        except Exception:
+            pass
+
+    # Extract available statement periods for filter dropdown
+    available_periods = []
+    valid_dates = df["_parsed_date"].dropna()
+    if not valid_dates.empty:
+        for (y, m), grp in df.groupby([df["_parsed_date"].dt.year, df["_parsed_date"].dt.month], sort=False):
+            if pd.notna(y) and pd.notna(m):
+                available_periods.append({
+                    "year": int(y),
+                    "month": int(m),
+                    "val": f"{int(y)}-{int(m):02d}",
+                    "label": datetime(int(y), int(m), 1).strftime("%B %Y"),
+                    "count": len(grp),
+                })
+        available_periods.sort(key=lambda x: (x["year"], x["month"]), reverse=True)
+
+    filtered_df = df.copy()
+
+    # 1. Filter by category
+    if category and str(category).strip():
+        cat_clean = str(category).strip()
+        if cat_clean.lower() == "uncategorized":
+            cat_mask = (
+                filtered_df["Category"].isna()
+                | filtered_df["Category"].astype(str).str.strip().str.lower().isin(["uncategorized", "", "none", "nan"])
+            )
+        else:
+            cat_mask = filtered_df["Category"].astype(str).str.strip().str.lower() == cat_clean.lower()
+        filtered_df = filtered_df[cat_mask]
+
+    # 2. Filter by month and year
+    if month is not None and year is not None:
+        date_mask = (filtered_df["_parsed_date"].dt.month == month) & (filtered_df["_parsed_date"].dt.year == year)
+        filtered_df = filtered_df[date_mask]
+    elif year is not None:
+        date_mask = filtered_df["_parsed_date"].dt.year == year
+        filtered_df = filtered_df[date_mask]
+
+    # 3. Filter by search query q
+    if q and str(q).strip():
+        q_clean = str(q).strip()
+        text_mask = filtered_df["Particulars"].astype(str).str.contains(q_clean, case=False, na=False)
+        filtered_df = filtered_df[text_mask]
+
+    total_rows = len(filtered_df)
+
+    # Compute net spent / received on the filtered subset
+    debit_sum = pd.to_numeric(filtered_df["Debit"], errors="coerce").fillna(0).sum()
+    credit_sum = pd.to_numeric(filtered_df["Credit"], errors="coerce").fillna(0).sum()
+    if category and str(category).strip().lower() == "income":
+        net_spent = credit_sum - debit_sum
+    else:
+        net_spent = debit_sum - credit_sum
+
     start = (page - 1) * size
     end = start + size
-    paginated_df = df.iloc[start:end]
+    paginated_df = filtered_df.iloc[start:end]
 
     categories = get_categories()
 
@@ -227,7 +304,17 @@ async def view_transactions(request: Request, page: int = 1, size: int = 20):
             "page": page,
             "total_pages": max(1, (total_rows // size) + (1 if total_rows % size != 0 else 0)),
             "start_index": start,
+            "total_rows": total_rows,
             "today_date": datetime.now().strftime("%Y-%m-%d"),
+            "current_category": category or "",
+            "current_month": month,
+            "current_year": year,
+            "current_period": f"{year}-{month:02d}" if (year and month) else "",
+            "current_q": q or "",
+            "filter_debit": debit_sum,
+            "filter_credit": credit_sum,
+            "filter_net": net_spent,
+            "available_periods": available_periods,
         },
     )
 
@@ -291,6 +378,15 @@ async def index(request: Request, month: int = None, year: int = None):
         else:
             actual_report[cat] = cat_df["Debit"].sum() - cat_df["Credit"].sum()
 
+    # Uncategorized spending check for this active month
+    uncat_mask = (
+        month_df["Category"].isna()
+        | month_df["Category"].astype(str).str.strip().str.lower().isin(["uncategorized", "", "none", "nan"])
+    )
+    uncat_df = month_df[uncat_mask]
+    uncat_spent = uncat_df["Debit"].sum() - uncat_df["Credit"].sum()
+    uncat_count = len(uncat_df)
+
     prev_month = month - 1 if month > 1 else 12
     prev_year = year if month > 1 else year - 1
     next_month = month + 1 if month < 12 else 1
@@ -303,6 +399,10 @@ async def index(request: Request, month: int = None, year: int = None):
             "report": actual_report,
             "budgets": budgets,
             "current_date": datetime(year, month, 1).strftime("%B %Y"),
+            "current_month": month,
+            "current_year": year,
+            "uncat_spent": uncat_spent,
+            "uncat_count": uncat_count,
             "categories": list(budgets.keys()),
             "today_date": datetime.now().strftime("%Y-%m-%d"),
             "nav": {
