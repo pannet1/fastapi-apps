@@ -161,11 +161,10 @@ def test_business_performance_subapp_agent_api():
 
 
 def test_human_and_agent_data_entry():
-    import shutil
+    import sqlite3
     from pathlib import Path
-    import unified_agent
-    pf_csv = Path(unified_agent.PF_MASTER_FILE)
-    backup = pf_csv.read_text(encoding="utf-8") if pf_csv.exists() else None
+
+    db_path = Path(__file__).resolve().parent.parent / "apps" / "personal-finance" / "data" / "finance.db"
 
     try:
         # 1. Agent records personal transaction
@@ -203,8 +202,12 @@ def test_human_and_agent_data_entry():
         )
         assert cat_res.status_code == 200
     finally:
-        if backup is not None:
-            pf_csv.write_text(backup, encoding="utf-8")
+        if db_path.exists():
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("DELETE FROM transactions WHERE particulars IN ('Agent AWS Cloud Services', 'Grocery Market Fresh')")
+            conn.commit()
+            conn.close()
 
     # 4. Agent records inventory item
     inv_res = client.post(
