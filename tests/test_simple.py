@@ -151,19 +151,25 @@ def test_personal_finance_category_update_and_dom_elements():
     from pathlib import Path
     master_path = Path(__file__).parent.parent / "apps" / "personal-finance" / "data" / "master_transactions.csv"
     df = pd.read_csv(master_path)
-    orig_cat = df.at[0, "Category"]
+    import sqlite3
+    db_path = Path(__file__).parent.parent / "apps" / "personal-finance" / "data" / "finance.db"
+    assert db_path.exists()
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT category FROM transactions WHERE id = 1")
+    row = cur.fetchone()
+    orig_cat = row[0] if row else "Uncategorized"
+    conn.close()
     try:
-        res = client.post("/personal-finance/update-category", data={"row_index": 0, "category": "TestingTemp"})
+        res = client.post("/personal-finance/update-category", data={"row_index": 1, "category": "TestingTemp"})
         assert res.status_code == 200
         data = res.json()
         assert data["status"] == "success"
         assert "updated_count" in data
         assert "updated_indices" in data
         assert isinstance(data["updated_indices"], list)
-        assert 0 in data["updated_indices"]
+        assert 1 in data["updated_indices"]
         assert "vendor" in data
     finally:
-        df = pd.read_csv(master_path)
-        df.at[0, "Category"] = orig_cat
-        df.to_csv(master_path, index=False)
+        client.post("/personal-finance/update-category", data={"row_index": 1, "category": orig_cat})
 

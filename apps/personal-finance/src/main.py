@@ -13,6 +13,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from pf_database import (
+    DB_PATH,
+    add_single_transaction,
+    bulk_insert_parsed_csv,
+    get_transactions_df,
+    init_db,
+    sync_csv,
+    update_transaction_category,
+)
 from pf_agent_service import (
     add_transaction as agent_add_transaction,
     get_categories as agent_get_categories,
@@ -34,18 +43,7 @@ def get_categories():
 
 
 def initialize_master():
-    if not os.path.exists(MASTER_FILE):
-        df = pd.DataFrame(
-            columns=[
-                "Tran Date",
-                "Particulars",
-                "Debit",
-                "Credit",
-                "Balance",
-                "Category",
-            ]
-        )
-        df.to_csv(MASTER_FILE, index=False)
+    init_db(MASTER_FILE)
 
 
 # -------------------------------------------------------------
@@ -89,12 +87,11 @@ def agent_transactions(
 ):
     """Agent endpoint: Search and filter raw personal finance transactions."""
     initialize_master()
-    df = pd.read_csv(MASTER_FILE)
+    df = get_transactions_df()
     if df.empty:
         return {"total": 0, "transactions": []}
 
     df["_parsed_date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
-    df["_row_index"] = df.index
     filtered_df = df.copy()
     if uncategorized_only:
         mask = (
@@ -222,10 +219,7 @@ async def view_transactions(
     q: Optional[str] = Query(None),
 ):
     initialize_master()
-    df = pd.read_csv(MASTER_FILE)
-
-    # Retain the exact original row index in master CSV file for updates
-    df["_row_index"] = df.index
+    df = get_transactions_df()
 
     # Parse dates for filtering and period grouping
     df["_parsed_date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
@@ -358,7 +352,7 @@ async def index(
     period: Optional[str] = Query(None),
 ):
     initialize_master()
-    df = pd.read_csv(MASTER_FILE)
+    df = get_transactions_df()
     budgets = get_categories()
 
     df["Tran Date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
@@ -654,30 +648,15 @@ async def upload_csv(file: UploadFile = File(...)):
     if new_data.empty:
         raise HTTPException(status_code=400, detail="No valid transactions found in the CSV file.")
 
-    if os.path.exists(MASTER_FILE):
-        master_df = pd.read_csv(MASTER_FILE)
-        if not master_df.empty and "Particulars" in master_df.columns:
-            master_df["Particulars"] = master_df["Particulars"].apply(
-                lambda v: re.sub(r"\s+", " ", str(v)).strip() if pd.notna(v) else ""
-            )
-    else:
-        master_df = pd.DataFrame(columns=["Tran Date", "Particulars", "Debit", "Credit", "Balance", "Category"])
-
-    existing_count = len(master_df)
-    updated_master = pd.concat([master_df, new_data]).drop_duplicates(
-        subset=["Tran Date", "Particulars"], keep="first"
-    )
-    added_count = len(updated_master) - existing_count
-
-    updated_master.to_csv(MASTER_FILE, index=False)
+    res = bulk_insert_parsed_csv(new_data)
     return {
-        "message": f"Successfully imported bank statement. {added_count} new transactions merged.",
-        "added": added_count,
-        "total": len(updated_master),
+        "message": f"Successfully imported bank statement into SQLite. {res['added']} new transactions merged.",
+        "added": res["added"],
+        "total": res["total"],
     }
 
 
 @app.post("/update-category")
 async def update_category_form(row_index: int = Form(...), category: str = Form(...)):
-    res = agent_update_category(MASTER_FILE, row_index=row_index, category=category, forward=True)
+    res = update_transaction_category(row_index=row_index, category=category, forward=True)
     return res

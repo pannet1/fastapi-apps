@@ -6,6 +6,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import pandas as pd
 
+from pf_database import (
+    add_single_transaction,
+    get_transactions_df,
+    init_db,
+    update_transaction_category,
+)
+
 
 def resolve_file(file_path: str, default_name: str) -> Path:
     if not file_path:
@@ -46,28 +53,13 @@ def get_personal_finance_summary(
     Computes agent-friendly summary of personal finance envelopes, cashflow, and spending.
     If month/year is omitted, automatically finds the most recent active month with data.
     """
-    path = resolve_file(master_file, "master_transactions.csv")
+    init_db(master_file)
     budgets = get_categories(categories_file)
+    df = get_transactions_df()
 
-    if not path.exists():
-        empty_res = {
-            "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "No Data"},
-            "cashflow": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "savings_rate_pct": 0.0},
-            "envelopes": [],
-            "over_budget_envelopes": [],
-            "categorization_health": {"uncategorized_count": 0, "uncategorized_amount": 0.0, "pending": []},
-            "top_expenses": [],
-            "all_time_totals": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "total_transactions": 0},
-            "available_periods": [],
-        }
-        if fmt == "markdown":
-            return {"markdown": _format_personal_markdown(empty_res), "data": empty_res}
-        return empty_res
-
-    df = pd.read_csv(path)
     if df.empty:
         empty_res = {
-            "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "Empty"},
+            "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "No Data"},
             "cashflow": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "savings_rate_pct": 0.0},
             "envelopes": [],
             "over_budget_envelopes": [],
@@ -286,44 +278,16 @@ def add_transaction(
     category: str = "Uncategorized",
     balance: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Adds a single transaction row to master_transactions.csv."""
-    path = resolve_file(master_file, "master_transactions.csv")
-    if path.exists():
-        df = pd.read_csv(path)
-    else:
-        df = pd.DataFrame(columns=["Tran Date", "Particulars", "Debit", "Credit", "Balance", "Category"])
-
-    # If balance not provided, calculate from previous row
-    if balance is None or pd.isna(balance):
-        if not df.empty and "Balance" in df.columns:
-            last_bal = pd.to_numeric(df["Balance"].iloc[-1], errors="coerce")
-            last_bal = 0.0 if pd.isna(last_bal) else float(last_bal)
-            balance = round(last_bal + credit - debit, 2)
-        else:
-            balance = round(credit - debit, 2)
-
-    # Format date string nicely if passed as YYYY-MM-DD
-    try:
-        if "-" in tran_date and len(tran_date.split("-")[0]) == 4:
-            dt = datetime.strptime(tran_date, "%Y-%m-%d")
-            tran_date_str = dt.strftime("%d-%m-%Y")
-        else:
-            tran_date_str = tran_date
-    except Exception:
-        tran_date_str = tran_date
-
-    new_row = {
-        "Tran Date": tran_date_str,
-        "Particulars": particulars.strip(),
-        "Debit": round(float(debit), 2) if debit else "",
-        "Credit": round(float(credit), 2) if credit else "",
-        "Balance": round(float(balance), 2),
-        "Category": category.strip() if category else "Uncategorized",
-    }
-
-    new_df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    new_df.to_csv(path, index=False)
-    return {"status": "success", "message": "Transaction added successfully", "transaction": new_row}
+    """Adds a single transaction row to SQLite database and synchronizes master CSV."""
+    init_db(master_file)
+    return add_single_transaction(
+        tran_date=tran_date,
+        particulars=particulars,
+        debit=debit,
+        credit=credit,
+        category=category,
+        balance=balance,
+    )
 
 
 def update_category(
@@ -332,50 +296,6 @@ def update_category(
     category: str,
     forward: bool = True,
 ) -> Dict[str, Any]:
-    """Updates category for a transaction, with forward matching support."""
-    path = resolve_file(master_file, "master_transactions.csv")
-    if not path.exists():
-        return {"status": "error", "message": "Master transaction file does not exist."}
-
-    df = pd.read_csv(path)
-    if row_index < 0 or row_index >= len(df):
-        return {"status": "error", "message": f"Row index {row_index} out of bounds."}
-
-    target_row = df.iloc[row_index]
-
-    if not forward:
-        df.at[row_index, "Category"] = category
-        df.to_csv(path, index=False)
-        return {
-            "status": "success",
-            "updated_count": 1,
-            "updated_indices": [int(row_index)],
-            "category": category,
-            "message": f"Updated single row {row_index} to {category}",
-        }
-
-    def _extract_vendor(parts_str):
-        parts = str(parts_str).split("/")
-        return parts[3].strip() if len(parts) > 3 else str(parts_str).strip()
-
-    target_vendor = _extract_vendor(target_row["Particulars"])
-    target_date = pd.to_datetime(target_row["Tran Date"], dayfirst=True, errors="coerce")
-
-    df["temp_date"] = pd.to_datetime(df["Tran Date"], dayfirst=True, errors="coerce")
-    mask = (df["temp_date"] >= target_date) & (
-        df["Particulars"].str.contains(re.escape(target_vendor), case=False, na=False)
-    )
-
-    df.loc[mask, "Category"] = category
-    updated_indices = [int(i) for i in df[mask].index.tolist()]
-    df = df.drop(columns=["temp_date"])
-    df.to_csv(path, index=False)
-
-    return {
-        "status": "success",
-        "updated_count": int(mask.sum()),
-        "updated_indices": updated_indices,
-        "vendor": target_vendor,
-        "category": category,
-        "message": f"Updated {int(mask.sum())} similar transactions matching vendor '{target_vendor}' forward from {target_row['Tran Date']}",
-    }
+    """Updates category for a transaction in SQLite, supporting forward-matching."""
+    init_db(master_file)
+    return update_transaction_category(row_index=row_index, category=category, forward=forward)
