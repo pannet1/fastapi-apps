@@ -346,7 +346,13 @@ def update_category(
     if not forward:
         df.at[row_index, "Category"] = category
         df.to_csv(path, index=False)
-        return {"status": "success", "updated_count": 1, "message": f"Updated single row {row_index} to {category}"}
+        return {
+            "status": "success",
+            "updated_count": 1,
+            "updated_indices": [int(row_index)],
+            "category": category,
+            "message": f"Updated single row {row_index} to {category}",
+        }
 
     def _extract_vendor(parts_str):
         parts = str(parts_str).split("/")
@@ -361,11 +367,15 @@ def update_category(
     )
 
     df.loc[mask, "Category"] = category
+    updated_indices = [int(i) for i in df[mask].index.tolist()]
     df = df.drop(columns=["temp_date"])
     df.to_csv(path, index=False)
 
     return {
         "status": "success",
         "updated_count": int(mask.sum()),
+        "updated_indices": updated_indices,
+        "vendor": target_vendor,
+        "category": category,
         "message": f"Updated {int(mask.sum())} similar transactions matching vendor '{target_vendor}' forward from {target_row['Tran Date']}",
     }
