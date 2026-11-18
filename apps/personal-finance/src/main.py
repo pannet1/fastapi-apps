@@ -378,11 +378,20 @@ async def index(
                 })
         available_periods.sort(key=lambda x: (x["year"], x["month"]), reverse=True)
 
+    # Compute all-time totals across all master transactions
+    all_time_report = {}
+    for cat in budgets.keys():
+        cat_all = df[df["Category"].astype(str).str.strip().str.lower() == str(cat).strip().lower()]
+        if cat.lower() == "income":
+            all_time_report[cat] = float(cat_all["Credit"].sum() - cat_all["Debit"].sum())
+        else:
+            all_time_report[cat] = float(cat_all["Debit"].sum())
+
     # Determine period selection:
     # 1. period="all" -> All Time statement total
     # 2. period="YYYY-MM" -> specific statement month
     # 3. month & year explicitly passed -> specific statement month
-    # 4. Default: LATEST statement month first (navigator sorted latest first)
+    # 4. Default: All Time statement total so cards reflect the true cumulative spendings
     is_all_time = False
     if period:
         p_clean = str(period).strip().lower()
@@ -399,17 +408,7 @@ async def index(
             except Exception:
                 pass
     elif month is None and year is None:
-        if available_periods:
-            year = available_periods[0]["year"]
-            month = available_periods[0]["month"]
-        elif not valid_dates.empty:
-            latest = valid_dates.max()
-            month = latest.month
-            year = latest.year
-        else:
-            now = datetime.now()
-            month = now.month
-            year = now.year
+        is_all_time = True
 
     if is_all_time:
         active_df = df.copy()
@@ -417,19 +416,19 @@ async def index(
         current_period = "all"
         current_month = None
         current_year = None
-        first_m = available_periods[0]["month"] if available_periods else 11
-        first_y = available_periods[0]["year"] if available_periods else 2026
+        latest_m = available_periods[0]["month"] if available_periods else 11
+        latest_y = available_periods[0]["year"] if available_periods else 2026
         nav = {
             "has_prev": len(available_periods) > 0,
-            "prev_url": f"/?month={first_m}&year={first_y}",
-            "prev_label": available_periods[0]["label"] if available_periods else "",
+            "prev_url": f"/?month={latest_m}&year={latest_y}",
+            "prev_label": f"Latest Month ({available_periods[0]['label']})" if available_periods else "Latest Month",
             "has_next": False,
             "next_url": "#",
             "next_label": "",
-            "prev_m": first_m,
-            "prev_y": first_y,
-            "next_m": first_m,
-            "next_y": first_y,
+            "prev_m": latest_m,
+            "prev_y": latest_y,
+            "next_m": latest_m,
+            "next_y": latest_y,
         }
     else:
         if month is None or year is None:
@@ -465,13 +464,20 @@ async def index(
             prev_m = prev_p["month"] if prev_p else month
             prev_y = prev_p["year"] if prev_p else year
 
-            # Next in time (newer month towards latest) is cur_idx - 1
-            has_next = (cur_idx - 1) >= 0
-            next_p = available_periods[cur_idx - 1] if has_next else None
-            next_url = f"/?month={next_p['month']}&year={next_p['year']}" if next_p else "#"
-            next_label = next_p["label"] if next_p else ""
-            next_m = next_p["month"] if next_p else month
-            next_y = next_p["year"] if next_p else year
+            # Next in time (newer month towards latest, or back to All Time if on latest)
+            if cur_idx == 0:
+                has_next = True
+                next_url = "/?period=all"
+                next_label = "All Time"
+                next_m = month
+                next_y = year
+            else:
+                has_next = (cur_idx - 1) >= 0
+                next_p = available_periods[cur_idx - 1] if has_next else None
+                next_url = f"/?month={next_p['month']}&year={next_p['year']}" if next_p else "#"
+                next_label = next_p["label"] if next_p else ""
+                next_m = next_p["month"] if next_p else month
+                next_y = next_p["year"] if next_p else year
         else:
             prev_m = month - 1 if month > 1 else 12
             prev_y = year if month > 1 else year - 1
@@ -525,6 +531,7 @@ async def index(
         {
             "request": request,
             "report": actual_report,
+            "all_time_report": all_time_report,
             "budgets": budgets,
             "current_date": current_date,
             "current_month": current_month,

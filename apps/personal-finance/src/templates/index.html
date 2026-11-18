@@ -40,10 +40,10 @@
     <form action="/" method="get" class="flex items-center gap-2">
         <label class="text-[11px] font-semibold text-slate-400">Period:</label>
         <select name="period" onchange="this.form.submit()" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer shadow-sm">
+            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
             {% for p in available_periods %}
             <option value="{{ p.val }}" {% if not is_all_time and current_period == p.val %}selected{% endif %}>{{ p.label }} ({{ p.count }})</option>
             {% endfor %}
-            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
         </select>
     </form>
 </div>
@@ -52,6 +52,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for cat, budget in budgets.items() %}
     {% set actual = report.get(cat, 0) %}
+    {% set all_time_actual = all_time_report.get(cat, 0) %}
     {% set percent = (actual / budget * 100) if budget > 0 else 0 %}
     {% set is_over = actual > budget %}
 
@@ -83,6 +84,13 @@
                 <span>Spent: <strong class="text-white font-mono text-sm">₹{{ "{:,.2f}".format(actual) }}</strong></span>
                 <span>Budget: <strong class="text-slate-300 font-mono">₹{{ "{:,.2f}".format(budget) }}</strong></span>
             </div>
+
+            {% if not is_all_time %}
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                <span>Statement Total: <strong class="text-slate-200 font-mono">₹{{ "{:,.2f}".format(all_time_actual) }}</strong></span>
+                <span class="text-slate-500 font-mono text-[10px]">All Time</span>
+            </div>
+            {% endif %}
         </div>
 
         <!-- Overspent / Remaining Alert Pill -->
