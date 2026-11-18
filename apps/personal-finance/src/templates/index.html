@@ -40,10 +40,10 @@
     <form action="/" method="get" class="flex items-center gap-2">
         <label class="text-[11px] font-semibold text-slate-400">Period:</label>
         <select name="period" onchange="this.form.submit()" class="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer shadow-sm">
-            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
             {% for p in available_periods %}
             <option value="{{ p.val }}" {% if not is_all_time and current_period == p.val %}selected{% endif %}>{{ p.label }} ({{ p.count }})</option>
             {% endfor %}
+            <option value="all" {% if is_all_time or current_period == 'all' %}selected{% endif %}>All Time (Statement Total)</option>
         </select>
     </form>
 </div>
@@ -104,9 +104,9 @@
                 <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
             </span>
             {% endif %}
-            <a href="/transactions?category={{ cat|urlencode }}"
+            <a href="/transactions?category={{ cat|urlencode }}{% if not is_all_time and current_period %}&period={{ current_period }}{% endif %}"
                class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition flex items-center gap-1"
-               title="View all {{ cat }} transactions">
+               title="View {{ cat }} transactions">
                 View {{ cat }} →
             </a>
         </div>
@@ -131,7 +131,7 @@
             </div>
         </div>
     </div>
-    <a href="/transactions?category=Uncategorized"
+    <a href="/transactions?category=Uncategorized{% if not is_all_time and current_period %}&period={{ current_period }}{% endif %}"
        class="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-500/20 whitespace-nowrap">
         <i class="fa-solid fa-tags text-xs"></i> Classify Transactions →
     </a>

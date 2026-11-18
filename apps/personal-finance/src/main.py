@@ -225,13 +225,18 @@ async def view_transactions(
 
     # Handle combined period string (e.g. "2026-11") from form dropdown
     if period and str(period).strip():
-        try:
-            parts = str(period).strip().split("-")
-            if len(parts) == 2:
-                year = int(parts[0])
-                month = int(parts[1])
-        except Exception:
-            pass
+        p_clean = str(period).strip().lower()
+        if p_clean in ["all", "all time", "all_time"]:
+            year = None
+            month = None
+        else:
+            try:
+                parts = p_clean.split("-")
+                if len(parts) == 2:
+                    year = int(parts[0])
+                    month = int(parts[1])
+            except Exception:
+                pass
 
     # Extract available statement periods for filter dropdown
     available_periods = []
@@ -384,7 +389,7 @@ async def index(
     # 1. period="all" -> All Time statement total
     # 2. period="YYYY-MM" -> specific statement month
     # 3. month & year explicitly passed -> specific statement month
-    # 4. Default: All Time statement total so cards reflect the true cumulative spendings
+    # 4. Default: latest statement month (monthly basis)
     is_all_time = False
     if period:
         p_clean = str(period).strip().lower()
@@ -400,8 +405,6 @@ async def index(
                     month = int(parts[1])
             except Exception:
                 pass
-    elif month is None and year is None:
-        is_all_time = True
 
     if is_all_time:
         active_df = df.copy()
@@ -457,20 +460,13 @@ async def index(
             prev_m = prev_p["month"] if prev_p else month
             prev_y = prev_p["year"] if prev_p else year
 
-            # Next in time (newer month towards latest, or back to All Time if on latest)
-            if cur_idx == 0:
-                has_next = True
-                next_url = "/?period=all"
-                next_label = "All Time"
-                next_m = month
-                next_y = year
-            else:
-                has_next = (cur_idx - 1) >= 0
-                next_p = available_periods[cur_idx - 1] if has_next else None
-                next_url = f"/?month={next_p['month']}&year={next_p['year']}" if next_p else "#"
-                next_label = next_p["label"] if next_p else ""
-                next_m = next_p["month"] if next_p else month
-                next_y = next_p["year"] if next_p else year
+            # Next in time (newer month towards latest)
+            has_next = (cur_idx - 1) >= 0
+            next_p = available_periods[cur_idx - 1] if has_next else None
+            next_url = f"/?month={next_p['month']}&year={next_p['year']}" if next_p else "#"
+            next_label = next_p["label"] if next_p else ""
+            next_m = next_p["month"] if next_p else month
+            next_y = next_p["year"] if next_p else year
         else:
             prev_m = month - 1 if month > 1 else 12
             prev_y = year if month > 1 else year - 1

@@ -75,37 +75,55 @@ def test_personal_finance_mounted():
 
 
 def test_personal_finance_envelope_budget_and_category_filtering():
-    # 1. Home page envelope cards
+    # 1. Home page envelope cards default to latest month (November 2026)
     fin = client.get("/personal-finance/")
     assert fin.status_code == 200
-    # Link for Business must point directly to transactions filtered by Business without month lock
-    assert 'href="/personal-finance/transactions?category=Business"' in fin.text
-    # Spent amount for Business is counted from actual debits (> 0)
+    assert "November 2026" in fin.text
+    # Link for Business is scoped to the active monthly period
+    assert 'href="/personal-finance/transactions?category=Business&period=2026-11"' in fin.text
+    # Spent amount for Business is monthly debit (₹816.50) vs monthly budget (₹10,000.00)
     assert "Business" in fin.text
     assert "₹10,000.00" in fin.text  # Budget
+    assert "remaining" in fin.text  # Under budget for the month
 
-    # 2. View Business transactions
-    biz_resp = client.get("/personal-finance/transactions?category=Business")
-    assert biz_resp.status_code == 200
-    assert "Page 1 of" in biz_resp.text
-    assert '<span id="tx-total-rows-num">' in biz_resp.text
-    assert "transactions" in biz_resp.text
-    assert '<option value="Business" selected>Business</option>' in biz_resp.text
+    # 2. Uncategorized spending alert card links to filtered month
+    assert "Uncategorized Spending (November 2026)" in fin.text
+    assert "13 Transactions" in fin.text
+    assert "₹4,388.00" in fin.text
+    assert 'href="/personal-finance/transactions?category=Uncategorized&period=2026-11"' in fin.text
 
-    # 3. Monthly period filtering
-    m_resp = client.get("/personal-finance/?period=2025-11")
-    assert m_resp.status_code == 200
-    assert "November 2025" in m_resp.text
+    # 3. View filtered uncategorized transactions directly
+    uncat_nov = client.get("/personal-finance/transactions?category=Uncategorized&period=2026-11")
+    assert uncat_nov.status_code == 200
+    assert "13 matched" in uncat_nov.text
+    assert 'id="tx-total-rows-num">13</span> transactions' in uncat_nov.text
+    assert "Total Net Spending:" in uncat_nov.text
+
+    # 4. View Business transactions scoped to month
+    biz_nov = client.get("/personal-finance/transactions?category=Business&period=2026-11")
+    assert biz_nov.status_code == 200
+    assert '<option value="Business" selected>Business</option>' in biz_nov.text
+
+    # 5. All Time statement view via ?period=all
+    all_time = client.get("/personal-finance/?period=all")
+    assert all_time.status_code == 200
+    assert "All Time (Statement Total)" in all_time.text
+    assert 'href="/personal-finance/transactions?category=Business"' in all_time.text
 
 
 def test_personal_finance_latest_first_sorting():
-    # 1. Home page defaults to Statement Total reflecting cumulative spendings
+    # 1. Home page defaults to latest active monthly period
     fin = client.get("/personal-finance/")
     assert fin.status_code == 200
-    assert "All Time (Statement Total)" in fin.text
+    assert "November 2026" in fin.text
     assert "Business" in fin.text
-    assert "Over by" in fin.text
-    assert "November 2026" in fin.text  # Period dropdown contains latest period first
+    assert "remaining" in fin.text
+
+    # 2. All Time view reflects statement cumulative total
+    all_resp = client.get("/personal-finance/?period=all")
+    assert all_resp.status_code == 200
+    assert "All Time (Statement Total)" in all_resp.text
+    assert "Over by" in all_resp.text
 
     # 2. Monthly period view (e.g. November 2026)
     m_nov = client.get("/personal-finance/?period=2026-11")
