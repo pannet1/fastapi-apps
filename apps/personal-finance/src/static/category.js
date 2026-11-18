@@ -5,15 +5,23 @@ async function updateCat(index, value) {
     formData.append("row_index", index);
     formData.append("category", value);
 
-    const response = await fetch("update-category", {
-        method: "POST",
-        body: formData,
-    });
+    const baseUrl = window.location.pathname.includes("/personal-finance") 
+        ? "/personal-finance" 
+        : "";
 
-    if (response.ok) {
-        location.reload();
-    } else {
-        alert("Error updating category.");
+    try {
+        const response = await fetch(`${baseUrl}/update-category`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert("Error updating category.");
+        }
+    } catch (err) {
+        alert("Network error updating category: " + err.message);
     }
 }
 
@@ -23,22 +31,49 @@ async function handleUpload(event) {
     const fileInput = document.getElementById("csvFile");
     const status = document.getElementById("statusMessage");
 
-    if (!fileInput.files[0]) return;
+    if (!fileInput || !fileInput.files[0]) {
+        if (status) status.innerHTML = '<span class="text-rose-400 font-semibold">Please select a CSV file first.</span>';
+        return;
+    }
 
     let formData = new FormData();
     formData.append("file", fileInput.files[0]);
 
-    status.innerHTML = "Processing...";
+    if (status) {
+        status.innerHTML = '<span class="text-amber-400 font-semibold"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Parsing and merging transactions...</span>';
+    }
 
-    const response = await fetch("upload", {
-        method: "POST",
-        body: formData,
-    });
+    const baseUrl = window.location.pathname.includes("/personal-finance") 
+        ? "/personal-finance" 
+        : "";
+    const uploadUrl = (event.target && event.target.getAttribute("action")) || `${baseUrl}/upload`;
 
-    if (response.ok) {
-        status.innerHTML = '<span class="text-success">Master updated!</span>';
-        setTimeout(() => location.reload(), 1000);
-    } else {
-        status.innerHTML = '<span class="text-danger">Upload failed.</span>';
+    try {
+        const response = await fetch(uploadUrl, {
+            method: "POST",
+            body: formData,
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+            const addedCount = data.added !== undefined ? data.added : (data.count || 0);
+            const totalCount = data.total !== undefined ? ` (Total: ${data.total})` : "";
+            if (status) {
+                status.innerHTML = `<span class="text-emerald-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> Successfully imported! ${addedCount} new transactions merged${totalCount}. Redirecting...</span>`;
+            }
+            setTimeout(() => {
+                window.location.href = `${baseUrl}/transactions`;
+            }, 1200);
+        } else {
+            const errMsg = data.detail || data.message || "Upload failed. Please check CSV format.";
+            if (status) {
+                status.innerHTML = `<span class="text-rose-400 font-bold"><i class="fa-solid fa-circle-xmark mr-1"></i> ${errMsg}</span>`;
+            }
+        }
+    } catch (err) {
+        if (status) {
+            status.innerHTML = `<span class="text-rose-400 font-bold"><i class="fa-solid fa-circle-xmark mr-1"></i> Upload error: ${err.message}</span>`;
+        }
     }
 }

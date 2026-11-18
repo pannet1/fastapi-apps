@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from fastapi import FastAPI, File, Form, Query, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -314,29 +315,133 @@ async def index(request: Request, month: int = None, year: int = None):
     )
 
 
+def parse_bank_statement_csv(content: bytes) -> pd.DataFrame:
+    """
+    Parses bank statement CSV uploads (including raw Axis Bank statements with metadata headers,
+    disclaimer footers, and varying column names) as well as pre-cleaned CSVs.
+    Returns normalized DataFrame with columns:
+    ['Tran Date', 'Particulars', 'Debit', 'Credit', 'Balance', 'Category']
+    """
+    text = None
+    for enc in ["utf-8", "utf-8-sig", "latin1", "cp1252"]:
+        try:
+            text = content.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = content.decode("utf-8", errors="ignore")
+
+    lines = text.splitlines()
+
+    # Search for the table header row
+    header_idx = None
+    for i, line in enumerate(lines[:60]):
+        low = line.lower()
+        if "tran date" in low or ("date" in low and any(k in low for k in ["particular", "narration", "description", "dr", "cr", "debit"])):
+            header_idx = i
+            break
+
+    if header_idx is not None:
+        table_lines = [lines[header_idx]]
+        for line in lines[header_idx + 1:]:
+            s = line.strip()
+            if not s:
+                break
+            if s.startswith('"') and not ("," in s and not s.endswith('"')):
+                # Bank disclaimer or legend quote line
+                break
+            if "statement of account" in s.lower() or "registered office" in s.lower():
+                break
+            table_lines.append(line)
+        csv_str = "\n".join(table_lines)
+    else:
+        csv_str = text
+
+    try:
+        df = pd.read_csv(io.StringIO(csv_str))
+    except Exception as e:
+        raise ValueError(f"Could not parse CSV content: {e}")
+
+    # Map column variations
+    col_map = {}
+    for col in df.columns:
+        c_clean = str(col).strip().lower()
+        if c_clean in ["tran date", "transaction date", "txn date", "date", "value date"]:
+            col_map[col] = "Tran Date"
+        elif c_clean in ["particulars", "particular", "description", "narration", "details", "remarks"]:
+            col_map[col] = "Particulars"
+        elif c_clean in ["dr", "debit", "debit amount", "withdrawal", "dr amount"]:
+            col_map[col] = "Debit"
+        elif c_clean in ["cr", "credit", "credit amount", "deposit", "cr amount"]:
+            col_map[col] = "Credit"
+        elif c_clean in ["bal", "balance", "closing balance", "net balance"]:
+            col_map[col] = "Balance"
+        elif c_clean in ["category"]:
+            col_map[col] = "Category"
+
+    df = df.rename(columns=col_map)
+
+    if "Tran Date" not in df.columns or "Particulars" not in df.columns:
+        raise ValueError("Uploaded CSV must contain Tran Date and Particulars columns")
+
+    for req in ["Debit", "Credit", "Balance"]:
+        if req not in df.columns:
+            df[req] = None
+
+    if "Category" not in df.columns:
+        df["Category"] = "Uncategorized"
+
+    # Filter out empty or repeated header rows
+    df = df[df["Tran Date"].notna() & df["Particulars"].notna()]
+    df = df[~df["Tran Date"].astype(str).str.lower().str.contains("date")]
+
+    # Normalize fields
+    df["Tran Date"] = df["Tran Date"].astype(str).str.strip()
+    df["Particulars"] = df["Particulars"].apply(lambda v: re.sub(r"\s+", " ", str(v)).strip() if pd.notna(v) else "")
+    df["Debit"] = pd.to_numeric(df["Debit"].astype(str).str.replace(",", "").str.strip(), errors="coerce")
+    df["Credit"] = pd.to_numeric(df["Credit"].astype(str).str.replace(",", "").str.strip(), errors="coerce")
+    df["Balance"] = pd.to_numeric(df["Balance"].astype(str).str.replace(",", "").str.strip(), errors="coerce")
+
+    return df[["Tran Date", "Particulars", "Debit", "Credit", "Balance", "Category"]]
+
+
 @app.post("/upload")
 async def upload_csv(file: UploadFile = File(...)):
-    new_data = pd.read_csv(file.file)
+    initialize_master()
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    cols_to_remove = ["Chq No", "Init. Br"]
-    new_data = new_data.drop(
-        columns=[c for c in cols_to_remove if c in new_data.columns]
-    )
+    try:
+        new_data = parse_bank_statement_csv(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse bank statement: {str(e)}")
+
+    if new_data.empty:
+        raise HTTPException(status_code=400, detail="No valid transactions found in the CSV file.")
 
     if os.path.exists(MASTER_FILE):
         master_df = pd.read_csv(MASTER_FILE)
+        if not master_df.empty and "Particulars" in master_df.columns:
+            master_df["Particulars"] = master_df["Particulars"].apply(
+                lambda v: re.sub(r"\s+", " ", str(v)).strip() if pd.notna(v) else ""
+            )
     else:
-        master_df = pd.DataFrame()
+        master_df = pd.DataFrame(columns=["Tran Date", "Particulars", "Debit", "Credit", "Balance", "Category"])
 
-    if "Category" not in new_data.columns:
-        new_data["Category"] = "Uncategorized"
-
+    existing_count = len(master_df)
     updated_master = pd.concat([master_df, new_data]).drop_duplicates(
         subset=["Tran Date", "Particulars"], keep="first"
     )
+    added_count = len(updated_master) - existing_count
 
     updated_master.to_csv(MASTER_FILE, index=False)
-    return {"message": "Master file updated successfully"}
+    return {
+        "message": f"Successfully imported bank statement. {added_count} new transactions merged.",
+        "added": added_count,
+        "total": len(updated_master),
+    }
 
 
 @app.post("/update-category")

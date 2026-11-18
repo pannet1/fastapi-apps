@@ -225,6 +225,19 @@ class FastAPIMarketplace:
             if response.status_code == 404 and self.registry:
                 path = request.url.path
                 if path != "/":
+                    if path.startswith("/static/"):
+                        rel_static = path[len("/static/"):]
+                        for item in self.registry:
+                            for candidate_dir in [
+                                APPS_DIR / item["name"] / "src" / "static",
+                                APPS_DIR / item["name"] / "static",
+                                APPS_DIR / item["name"].lower() / "src" / "static",
+                                APPS_DIR / item["name"].lower() / "static",
+                            ]:
+                                if (candidate_dir / rel_static).is_file():
+                                    target = f"{item['path'].rstrip('/')}{path}"
+                                    return RedirectResponse(url=target, status_code=307)
+
                     for item in self.registry:
                         sub_app = item.get("raw_app")
                         if sub_app:

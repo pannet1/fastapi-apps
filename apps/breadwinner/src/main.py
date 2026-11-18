@@ -199,12 +199,15 @@ def agent_spec():
             "save_persona_action": {"method": "POST", "path": "/api/persona-actions", "description": "Create or update a persona repo action with objective"},
             "repo_overview": {"method": "GET", "path": "/api/agent/repos/{repo_name}", "description": "Dynamically inspect live README/AGENTS.md for a given repo"},
             "campaigns": {"method": "GET", "path": "/api/campaigns", "description": "List commercial campaigns and decision gate states"},
+            "campaign_performance": {"method": "GET", "path": "/api/campaigns/{slug}/performance", "description": "Check performance and completion rate of a campaign"},
+            "campaigns_performance": {"method": "GET", "path": "/api/campaigns/performance", "description": "Summary performance metrics across all campaigns"},
             "create_campaign": {"method": "POST", "path": "/api/campaigns", "description": "Formulate and propose a new commercial campaign"},
             "agree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/agree", "description": "Human decision gate: agree and activate campaign"},
             "disagree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/disagree", "description": "Human decision gate: reject campaign"},
-            "actions": {"method": "GET", "path": "/api/actions", "description": "List today's chronological field schedule"},
-            "create_action": {"method": "POST", "path": "/api/actions", "description": "Add new field action to human queue"},
-            "update_action": {"method": "PUT", "path": "/api/actions/{action_id}", "description": "Update status or details of a field action"}
+            "complete_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/complete", "description": "Mark campaign completed"},
+            "actions": {"method": "GET", "path": "/api/actions", "description": "List today's chronological field schedule (filter by ?campaign_slug= or independent)"},
+            "create_action": {"method": "POST", "path": "/api/actions", "description": "Add new field action (campaign-linked or independent)"},
+            "update_action": {"method": "PUT", "path": "/api/actions/{action_id}", "description": "Update status, details, or campaign association of a field action"}
         }
     }
 
@@ -221,8 +224,20 @@ def agent_summary():
     c.execute("SELECT * FROM active_actions ORDER BY time, id")
     daily = [dict(r) for r in c.fetchall()]
     conn.close()
+
+    active_camp_dict = dict(camp) if camp else None
+    if active_camp_dict:
+        c_slug = active_camp_dict["slug"]
+        c_actions = [a for a in daily if a.get("campaign_slug") == c_slug]
+        c_total = len(c_actions)
+        c_done = len([a for a in c_actions if a.get("status") == "done"])
+        active_camp_dict["field_actions_total"] = c_total
+        active_camp_dict["field_actions_done"] = c_done
+        active_camp_dict["field_actions_pending"] = c_total - c_done
+        active_camp_dict["completion_rate_pct"] = round((c_done / c_total) * 100, 1) if c_total > 0 else 0.0
+
     return {
-        "active_campaign": dict(camp) if camp else None,
+        "active_campaign": active_camp_dict,
         "personas_count": len(personas),
         "personas": personas,
         "repo_actions": actions,
@@ -233,10 +248,15 @@ def agent_summary():
 # Active Actions API (replaces data/REBOOT_PLAN.yaml active_actions)
 # ---------------------------------------------------------
 @app.get("/api/actions", tags=["Field Actions"], summary="List today's field actions")
-def get_actions():
+def get_actions(campaign_slug: Optional[str] = None):
     conn = get_connection()
     c = conn.cursor()
-    rows = [dict(r) for r in c.execute("SELECT * FROM active_actions ORDER BY time, id")]
+    if campaign_slug in ["independent", "none"]:
+        rows = [dict(r) for r in c.execute("SELECT * FROM active_actions WHERE campaign_slug IS NULL OR campaign_slug = '' ORDER BY time, id")]
+    elif campaign_slug:
+        rows = [dict(r) for r in c.execute("SELECT * FROM active_actions WHERE campaign_slug = ? ORDER BY time, id", (campaign_slug,))]
+    else:
+        rows = [dict(r) for r in c.execute("SELECT * FROM active_actions ORDER BY time, id")]
     meta = {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM plan_meta")}
     conn.close()
     return {"mission": meta.get("mission"), "updated": meta.get("updated"), "actions": rows}
@@ -246,19 +266,25 @@ class ActionCreate(BaseModel):
     action: str
     time: Optional[str] = None
     persona_slug: Optional[str] = None
+    campaign_slug: Optional[str] = None
+    repo: Optional[str] = None
 
 @app.post("/api/actions", tags=["Field Actions"], summary="Create a new field action")
 def create_action(item: ActionCreate):
     conn = get_connection()
     c = conn.cursor()
+    c_slug = item.campaign_slug.strip() if item.campaign_slug and item.campaign_slug.strip() else None
+    p_slug = item.persona_slug.strip() if item.persona_slug and item.persona_slug.strip() else None
+    repo_val = item.repo.strip() if item.repo and item.repo.strip() else None
+
     c.execute("""
-    INSERT INTO active_actions (task, action, time, status, persona_slug)
-    VALUES (?, ?, ?, 'pending', ?)
-    """, (item.task, item.action, item.time, item.persona_slug))
+    INSERT INTO active_actions (task, action, time, status, persona_slug, campaign_slug, repo)
+    VALUES (?, ?, ?, 'pending', ?, ?, ?)
+    """, (item.task, item.action, item.time, p_slug, c_slug, repo_val))
     new_id = c.lastrowid
     conn.commit()
     conn.close()
-    return {"status": "created", "action_id": new_id}
+    return {"status": "created", "action_id": new_id, "campaign_slug": c_slug}
 
 class ActionUpdate(BaseModel):
     status: Optional[str] = None
@@ -266,6 +292,8 @@ class ActionUpdate(BaseModel):
     action: Optional[str] = None
     time: Optional[str] = None
     persona_slug: Optional[str] = None
+    campaign_slug: Optional[str] = None
+    repo: Optional[str] = None
 
 @app.delete("/api/actions/{action_id}", tags=["Field Actions"], summary="Delete a field action")
 def delete_action(action_id: int):
@@ -291,19 +319,34 @@ def update_action(action_id: int, update: ActionUpdate):
         conn.close()
         raise HTTPException(status_code=404, detail="Action not found")
     cur = dict(row)
+
+    c_slug = cur.get("campaign_slug")
+    if update.campaign_slug is not None:
+        c_slug = update.campaign_slug.strip() if update.campaign_slug.strip() else None
+
+    p_slug = cur.get("persona_slug")
+    if update.persona_slug is not None:
+        p_slug = update.persona_slug.strip() if update.persona_slug.strip() else None
+
+    repo_val = cur.get("repo")
+    if update.repo is not None:
+        repo_val = update.repo.strip() if update.repo.strip() else None
+
     c.execute("""
-    UPDATE active_actions SET task = ?, action = ?, time = ?, status = ?, persona_slug = ? WHERE id = ?
+    UPDATE active_actions SET task = ?, action = ?, time = ?, status = ?, persona_slug = ?, campaign_slug = ?, repo = ? WHERE id = ?
     """, (
         update.task if update.task is not None else cur["task"],
         update.action if update.action is not None else cur["action"],
         update.time if update.time is not None else cur["time"],
         update.status if update.status is not None else cur["status"],
-        update.persona_slug if update.persona_slug is not None else cur.get("persona_slug"),
+        p_slug,
+        c_slug,
+        repo_val,
         action_id,
     ))
     conn.commit()
     conn.close()
-    return {"status": "updated", "action_id": action_id}
+    return {"status": "updated", "action_id": action_id, "campaign_slug": c_slug}
 
 @app.post("/api/actions/export")
 def export_actions():
@@ -312,7 +355,7 @@ def export_actions():
     return {"status": "exported", "count": n, "path": path}
 
 # ---------------------------------------------------------
-# Campaigns API (Decision Gate: AI Proposes Campaigns -> Human Agrees/Disagrees)
+# Campaigns API (Decision Gate & Autonomous Performance Tracking)
 # ---------------------------------------------------------
 class CampaignCreate(BaseModel):
     slug: str
@@ -336,6 +379,85 @@ def list_campaigns():
     """)]
     conn.close()
     return {"campaigns": rows}
+
+@app.get("/api/campaigns/{slug}/performance", tags=["Campaigns"], summary="Campaign field action performance metrics")
+def get_campaign_performance(slug: str):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM campaigns WHERE slug = ?", (slug,))
+    camp = c.fetchone()
+    if not camp:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Campaign '{slug}' not found")
+    camp_dict = dict(camp)
+
+    c.execute("SELECT * FROM active_actions WHERE campaign_slug = ? ORDER BY time, id", (slug,))
+    actions = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    total = len(actions)
+    done_count = len([a for a in actions if a.get("status") == "done"])
+    pending_count = total - done_count
+    pct = round((done_count / total) * 100, 1) if total > 0 else 0.0
+
+    return {
+        "campaign": camp_dict,
+        "metrics": {
+            "total_actions": total,
+            "completed_actions": done_count,
+            "pending_actions": pending_count,
+            "completion_rate_pct": pct,
+        },
+        "actions": actions
+    }
+
+@app.get("/api/campaigns/performance", tags=["Campaigns"], summary="Performance report for all campaigns")
+@app.get("/api/campaigns-performance", tags=["Campaigns"], summary="Performance report for all campaigns")
+def list_campaigns_performance():
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT * FROM campaigns
+        ORDER BY CASE status WHEN 'active' THEN 1 WHEN 'proposed' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END, slug
+    """)
+    campaigns = [dict(r) for r in c.fetchall()]
+
+    c.execute("SELECT * FROM active_actions ORDER BY time, id")
+    all_actions = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    campaign_reports = []
+    for camp in campaigns:
+        c_slug = camp["slug"]
+        camp_actions = [a for a in all_actions if a.get("campaign_slug") == c_slug]
+        total = len(camp_actions)
+        done_count = len([a for a in camp_actions if a.get("status") == "done"])
+        pending_count = total - done_count
+        pct = round((done_count / total) * 100, 1) if total > 0 else 0.0
+        campaign_reports.append({
+            "campaign": camp,
+            "metrics": {
+                "total_actions": total,
+                "completed_actions": done_count,
+                "pending_actions": pending_count,
+                "completion_rate_pct": pct,
+            },
+            "actions": camp_actions
+        })
+
+    independent_actions = [a for a in all_actions if not a.get("campaign_slug")]
+    ind_total = len(independent_actions)
+    ind_done = len([a for a in independent_actions if a.get("status") == "done"])
+
+    return {
+        "campaigns_performance": campaign_reports,
+        "independent_actions": {
+            "total": ind_total,
+            "completed": ind_done,
+            "pending": ind_total - ind_done,
+            "actions": independent_actions
+        }
+    }
 
 @app.post("/api/campaigns")
 def create_campaign(camp: CampaignCreate):
@@ -441,41 +563,258 @@ def dashboard(request: Request = None):
     campaigns = [dict(r) for r in c.fetchall()]
     conn.close()
 
+    num_proposed = len([c for c in campaigns if c["status"] == "proposed"])
+    num_active = len([c for c in campaigns if c["status"] == "active"])
+    num_completed = len([c for c in campaigns if c["status"] == "completed"])
+
+    campaign_map = {camp["slug"]: camp for camp in campaigns}
+    campaign_names = {camp["slug"]: camp["name"] for camp in campaigns}
+
     inr = lambda v: f"₹{v:,.0f}"
 
-    timeline_html = ""
-    for a in actions:
+    # Build dropdown options for Campaign select
+    campaign_options = ['<option value="">No Campaign (Independent Action)</option>']
+    for camp in campaigns:
+        c_st = camp.get("status", "proposed").upper()
+        campaign_options.append(f'<option value="{camp["slug"]}">{camp["name"]} [{c_st}]</option>')
+    campaign_select_options_html = "\n".join(campaign_options)
+
+    # Performance counts & summary cards (displayed on Field Actions tab)
+    independent_actions = [a for a in actions if not a.get("campaign_slug")]
+    camp_actions_all = [a for a in actions if a.get("campaign_slug")]
+    num_independent_total = len(independent_actions)
+    num_independent_done = len([a for a in independent_actions if a.get("status") == "done"])
+    num_camp_actions_total = len(camp_actions_all)
+    num_camp_actions_done = len([a for a in camp_actions_all if a.get("status") == "done"])
+
+    performance_metrics_html = f"""
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-6">
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Drives</div>
+        <div class="text-xl font-extrabold text-cyan-400 font-mono">{num_active}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">{num_proposed} proposed</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Campaign Actions</div>
+        <div class="text-xl font-extrabold text-emerald-400 font-mono">{num_camp_actions_done} <span class="text-xs font-normal text-slate-400">/ {num_camp_actions_total}</span></div>
+        <div class="text-[11px] text-slate-500 mt-0.5">{num_camp_actions_total - num_camp_actions_done} pending execution</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Campaign Progress</div>
+        <div class="text-xl font-extrabold text-white font-mono">{int(round((num_camp_actions_done / num_camp_actions_total) * 100)) if num_camp_actions_total > 0 else 0}%</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">overall completion rate</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Independent Actions</div>
+        <div class="text-xl font-extrabold text-amber-400 font-mono">{num_independent_done} <span class="text-xs font-normal text-slate-400">/ {num_independent_total}</span></div>
+        <div class="text-[11px] text-slate-500 mt-0.5">user-defined tasks</div>
+      </div>
+    </div>
+    """
+
+    # Action Filter Chips
+    filter_chips_html = f"""
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <button class="filter-chip active px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer transition" data-filter="all" onclick="filterActions('all')">
+        All Actions ({len(actions)})
+      </button>
+      <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-700 cursor-pointer transition" data-filter="independent" onclick="filterActions('independent')">
+        <i class="fa-solid fa-user text-[10px] mr-1"></i> Independent ({num_independent_total})
+      </button>
+    """
+    # Per-campaign filter buttons for campaigns that have actions
+    campaigns_with_actions = set(a.get("campaign_slug") for a in camp_actions_all if a.get("campaign_slug"))
+    for c_slug in campaigns_with_actions:
+        if c_slug in campaign_names:
+            c_cnt = len([a for a in actions if a.get("campaign_slug") == c_slug])
+            filter_chips_html += f"""
+            <button class="filter-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-700 cursor-pointer transition truncate max-w-xs" data-filter="{c_slug}" onclick="filterActions('{c_slug}')">
+              <i class="fa-solid fa-bullhorn text-[10px] mr-1 text-cyan-400"></i> {campaign_names[c_slug]} ({c_cnt})
+            </button>
+            """
+    filter_chips_html += "</div>"
+
+    # Build Grouped Actions View: Relate field actions to campaigns
+    grouped_cards = []
+
+    # 1. Feature campaigns that have field actions or are active
+    featured_campaigns = [c for c in campaigns if c.get("status") == "active" or c["slug"] in campaigns_with_actions]
+
+    for camp in featured_campaigns:
+        c_slug = camp["slug"]
+        c_name = camp["name"]
+        c_st = camp.get("status") or "proposed"
+        target_disp = inr(camp.get("target_revenue") or 0)
+        repo_info = f"{camp['repo']}{' / ' + camp['module'] if camp.get('module') else ''}" if camp.get('repo') else "Commercial Sprint"
+        rat = camp.get("rationale") or camp.get("module_role") or "Commercial revenue generation drive"
+
+        c_actions = [a for a in actions if a.get("campaign_slug") == c_slug]
+        c_total = len(c_actions)
+        c_done = len([a for a in c_actions if a.get("status") == "done"])
+        c_pct = int(round((c_done / c_total) * 100)) if c_total > 0 else 0
+
+        if c_st == "active":
+            st_badge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/15 border border-cyan-500/30 text-cyan-300"><i class="fa-solid fa-bullhorn text-[10px]"></i> Active Campaign Drive</span>'
+        elif c_st == "completed":
+            st_badge = '<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"><i class="fa-solid fa-check-double text-[10px]"></i> Completed Drive</span>'
+        else:
+            st_badge = f'<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300"><i class="fa-solid fa-lightbulb text-[10px]"></i> {c_st.title()} Drive</span>'
+
+        c_rows_html = ""
+        for a in c_actions:
+            done = a.get("status") == "done"
+            c_rows_html += f"""
+            <div class="row{' done' if done else ''}" data-campaign="{c_slug}" id="action-row-{a['id']}">
+              <span class="timechip">{a['time'] or '--:--'}</span>
+              <div class="what">
+                <div class="flex flex-wrap items-center gap-2 mb-0.5">
+                  <span class="task">{a['task']}</span>
+                </div>
+                <div class="detail">{a['action']}</div>
+              </div>
+              <div class="flex gap-2">
+                <button class="ok{' do' if not done else ''}" onclick="markAction({a['id']}, {'true' if not done else 'false'})">{'Done' if not done else 'Reopen'}</button>
+                <button class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="openEditAction({a['id']})">Edit</button>
+                <button class="px-3 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="deleteAction({a['id']})">Delete</button>
+              </div>
+            </div>"""
+
+        if not c_rows_html:
+            c_rows_html = '<div class="py-3 px-2 text-xs text-slate-500 italic">No field actions designed for this campaign drive yet.</div>'
+
+        grouped_cards.append(f"""
+        <div class="campaign-action-group glass-card p-5 mb-5 rounded-2xl border border-slate-800 shadow-xl" data-campaign-group="{c_slug}">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+            <div class="flex flex-wrap items-center gap-2">
+              {st_badge}
+              <span class="text-sm sm:text-base font-extrabold text-white tracking-tight">{c_name}</span>
+              <span class="text-xs text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800 font-mono"><i class="fa-solid fa-code-branch text-[10px] text-cyan-400 mr-1"></i>{repo_info}</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-slate-300 bg-slate-900/90 px-3 py-1 rounded-lg border border-slate-800">
+                Target: <span class="text-emerald-400 font-mono">{target_disp}</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="text-xs text-slate-400 mt-2.5 flex items-start gap-1.5">
+            <i class="fa-solid fa-crosshairs text-cyan-400 mt-0.5 text-[11px]"></i>
+            <span><b class="text-slate-300">Campaign Focus:</b> {rat}</span>
+          </div>
+
+          <div class="mt-3 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+            <div class="flex items-center justify-between text-xs mb-1.5 font-semibold">
+              <span class="text-slate-400">Field Execution Pace: {c_done} of {c_total} actions completed</span>
+              <span class="text-cyan-400 font-mono font-bold">{c_pct}%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-1.5 rounded-full transition-all duration-300" style="width: {c_pct}%"></div>
+            </div>
+          </div>
+
+          <div class="timeline mt-3.5 bg-slate-950/40 rounded-xl px-4 py-2 border border-slate-800/60">
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider my-1.5 flex items-center justify-between">
+              <span class="flex items-center gap-1.5"><i class="fa-solid fa-list-check text-cyan-400"></i> Scheduled Campaign Field Actions ({c_total})</span>
+              <span class="text-[10px] text-slate-500 lowercase font-normal">ai-architected sequence</span>
+            </div>
+            {c_rows_html}
+          </div>
+        </div>
+        """)
+
+    # 2. Independent Field Tasks Group (User-managed, no campaign bound)
+    ind_rows_html = ""
+    for a in independent_actions:
         done = a.get("status") == "done"
-        timeline_html += f"""
-        <div class="row{' done' if done else ''}">
+        ind_rows_html += f"""
+        <div class="row{' done' if done else ''}" data-campaign="independent" id="action-row-{a['id']}">
           <span class="timechip">{a['time'] or '--:--'}</span>
-          <div class="what"><div class="task">{a['task']}</div><div class="detail">{a['action']}</div></div>
+          <div class="what">
+            <div class="flex flex-wrap items-center gap-2 mb-0.5">
+              <span class="task">{a['task']}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800/80 border border-slate-700 text-slate-400"><i class="fa-solid fa-user text-[9px]"></i> Independent</span>
+            </div>
+            <div class="detail">{a['action']}</div>
+          </div>
           <div class="flex gap-2">
             <button class="ok{' do' if not done else ''}" onclick="markAction({a['id']}, {'true' if not done else 'false'})">{'Done' if not done else 'Reopen'}</button>
             <button class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="openEditAction({a['id']})">Edit</button>
             <button class="px-3 py-1.5 bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="deleteAction({a['id']})">Delete</button>
           </div>
         </div>"""
-    if not timeline_html:
-        timeline_html = '<div style="padding:14px;color:#94a3b8;font-size:13px">No active actions logged.</div>'
 
-    # Build Campaigns Tab (AI Proposed Campaigns vs Active)
-    num_proposed = len([c for c in campaigns if c["status"] == "proposed"])
-    num_active = len([c for c in campaigns if c["status"] == "active"])
-    num_completed = len([c for c in campaigns if c["status"] == "completed"])
-    
+    if not ind_rows_html:
+        ind_rows_html = '<div class="py-3 px-2 text-xs text-slate-500 italic">No independent field actions logged. Use "+ Add Field Action" above to add ad-hoc or personal tasks.</div>'
+
+    grouped_cards.append(f"""
+    <div class="campaign-action-group glass-card p-5 mb-5 rounded-2xl border border-slate-800 shadow-xl" data-campaign-group="independent">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
+            <i class="fa-solid fa-user text-[10px]"></i> Independent Tasks
+          </span>
+          <span class="text-sm sm:text-base font-extrabold text-white tracking-tight">Human-Managed Execution Tasks</span>
+          <span class="text-xs text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800 font-mono">No Campaign Bound</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs font-bold text-slate-300 bg-slate-900/90 px-3 py-1 rounded-lg border border-slate-800">
+            Execution: <span class="text-amber-400 font-mono font-bold">{num_independent_done} / {num_independent_total}</span> Done
+          </span>
+        </div>
+      </div>
+
+      <div class="text-xs text-slate-400 mt-2.5 flex items-start gap-1.5">
+        <i class="fa-solid fa-person-walking text-amber-400 mt-0.5 text-[11px]"></i>
+        <span><b class="text-slate-300">Human Field Domain:</b> Direct real-world tasks executed independently without relation to AI campaigns.</span>
+      </div>
+
+      <div class="timeline mt-3.5 bg-slate-950/40 rounded-xl px-4 py-2 border border-slate-800/60">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider my-1.5 flex items-center justify-between">
+          <span class="flex items-center gap-1.5"><i class="fa-solid fa-list-check text-amber-400"></i> Independent Field Actions ({num_independent_total})</span>
+          <span class="text-[10px] text-slate-500 lowercase font-normal">user-managed</span>
+        </div>
+        {ind_rows_html}
+      </div>
+    </div>
+    """)
+
+    grouped_actions_html = "\n".join(grouped_cards) if grouped_cards else '<div class="glass-card p-6 rounded-2xl border border-slate-800 text-center text-slate-400 text-sm">No active field actions logged. Use "+ Add Field Action" above to add real-world tasks.</div>'
+
+    performance_metrics_html = f"""
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-6">
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Drives</div>
+        <div class="text-xl font-extrabold text-cyan-400 font-mono">{num_active}</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">{num_proposed} proposed</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Campaign Actions</div>
+        <div class="text-xl font-extrabold text-emerald-400 font-mono">{num_camp_actions_done} <span class="text-xs font-normal text-slate-400">/ {num_camp_actions_total}</span></div>
+        <div class="text-[11px] text-slate-500 mt-0.5">{num_camp_actions_total - num_camp_actions_done} pending execution</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Campaign Progress</div>
+        <div class="text-xl font-extrabold text-white font-mono">{int(round((num_camp_actions_done / num_camp_actions_total) * 100)) if num_camp_actions_total > 0 else 0}%</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">overall completion rate</div>
+      </div>
+      <div class="glass-card p-4 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Independent Actions</div>
+        <div class="text-xl font-extrabold text-amber-400 font-mono">{num_independent_done} <span class="text-xs font-normal text-slate-400">/ {num_independent_total}</span></div>
+        <div class="text-[11px] text-slate-500 mt-0.5">user-defined tasks</div>
+      </div>
+    </div>
+    """
+
+    # Build Campaigns Tab (AI Proposals & Human Decision Gate)
     camp_cards_html = ""
     for camp in campaigns:
         st = camp.get("status") or "proposed"
         c_slug = camp["slug"]
         c_name = camp["name"]
         repo_info = f"{camp['repo']}{' / ' + camp['module'] if camp.get('module') else ''}" if camp.get('repo') else "Commercial Sprint"
-        p_slug = camp.get("persona_slug") or ""
-        p_title = persona_titles.get(p_slug, p_slug)
         target_disp = inr(camp.get("target_revenue") or 0)
         rat = camp.get("rationale") or camp.get("module_role") or "Commercial revenue generation drive"
-        dates = f"{camp.get('start_date', '')} to {camp.get('end_date', '')}"
-        
+
         if st == "proposed":
             btn_markup = f"""
             <div class="prop-btns">
@@ -518,12 +857,13 @@ def dashboard(request: Request = None):
       <div class="sec-head">
         <div>
           <h2>Campaigns &amp; Decision Gate</h2>
-          <span class="note">AI-proposed commercial campaigns mapped to financial goals. Agree to activate and drive the daily field pipeline.</span>
+          <span class="note">AI-proposed commercial campaigns mapped to financial goals. Humans accept or reject proposals by altering status.</span>
         </div>
         <div style="font-size:12.5px;color:var(--muted)">
           <b style="color:var(--warn)">{num_proposed}</b> proposed · <b style="color:var(--accent-ink)">{num_active}</b> active · <b style="color:#16a34a">{num_completed}</b> completed in flight
         </div>
       </div>
+
       <div class="prop-grid">{camp_cards_html}</div>
     </section>
     """
@@ -660,47 +1000,107 @@ def dashboard(request: Request = None):
       <div class="sec-head">
         <div>
           <h2>Today's Field Actions</h2>
-          <span class="note">The human executes these; the engine only records</span>
+          <span class="note">Real-world tasks executed by the human: both independent and campaign-related</span>
         </div>
         <button class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5" onclick="toggleAddAction()">
           <i class="fa-solid fa-plus text-xs"></i> Add Field Action
         </button>
       </div>
 
+      <!-- Autonomous Performance Summary Cards -->
+      {performance_metrics_html}
+
       <!-- Quick Add Action Form -->
-      <div id="add-action-box" class="glass-card p-5 mb-6" style="display:none;">
-        <div class="text-sm font-bold text-white mb-3">Add Real-World Field Action</div>
-        <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr_2fr_auto] gap-3 items-center">
-          <input id="new-action-time" type="text" placeholder="10:00" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-          <input id="new-action-task" type="text" placeholder="Task name / Client" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-          <input id="new-action-detail" type="text" placeholder="Specific action / visit / call detail" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-          <div class="flex gap-2">
-            <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer" onclick="submitNewAction()">Save</button>
-            <button class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="toggleAddAction()">Cancel</button>
+      <div id="add-action-box" class="glass-card p-5 mb-6 rounded-2xl border border-slate-800 shadow-xl" style="display:none;">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-calendar-plus text-cyan-400"></i> Add Real-World Field Action
+          </div>
+          <span class="text-xs text-slate-400">Independent or linked to a campaign</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Time</label>
+            <input id="new-action-time" type="text" placeholder="10:00" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Task / Client</label>
+            <input id="new-action-task" type="text" placeholder="Client visit / Phone pitch / Repair" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div class="sm:col-span-2 md:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Association</label>
+            <select id="new-action-campaign" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-semibold">
+              {campaign_select_options_html}
+            </select>
+          </div>
+          <div class="sm:col-span-2 md:col-span-4">
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Specific Field Detail / Action Objective</label>
+            <input id="new-action-detail" type="text" placeholder="e.g. Deliver quote, test board, collect advance payment" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div class="sm:col-span-2 md:col-span-4 flex justify-end gap-2 mt-2">
+            <button class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5" onclick="submitNewAction()">
+              <i class="fa-solid fa-check text-xs"></i> Save Field Action
+            </button>
+            <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="toggleAddAction()">Cancel</button>
           </div>
         </div>
       </div>
 
-      <div class="timeline">{timeline_html}</div>
+      <!-- Quick Filter Bar -->
+      {filter_chips_html}
+
+      <div id="field-actions-list" class="space-y-4">
+        {grouped_actions_html}
+      </div>
 
       <!-- Edit Action Modal -->
-      <div id="edit-action-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;align-items:center;justify-content:center;">
-        <div class="glass-card p-6" style="width:90%;max-width:560px;">
-          <div class="text-sm font-bold text-white mb-4">Edit Field Action</div>
+      <div id="edit-action-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;">
+        <div class="glass-card p-6 rounded-2xl border border-slate-800 shadow-2xl" style="width:90%;max-width:560px;">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Edit Field Action
+            </div>
+            <button class="text-slate-400 hover:text-white" onclick="closeEditAction()">✕</button>
+          </div>
           <input type="hidden" id="edit-action-id" />
           <div class="grid grid-cols-1 gap-3">
-            <input id="edit-action-time" type="text" placeholder="Time (e.g. 10:00)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-            <input id="edit-action-task" type="text" placeholder="Task name / Client" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-            <textarea id="edit-action-detail" rows="3" placeholder="Specific action / visit / call detail" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"></textarea>
-            <input id="edit-action-persona" type="text" placeholder="Persona slug (optional)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
-            <select id="edit-action-status" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
-              <option value="pending">pending</option>
-              <option value="done">done</option>
-            </select>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Time</label>
+                <input id="edit-action-time" type="text" placeholder="Time (e.g. 10:00)" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Status</label>
+                <select id="edit-action-status" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-semibold">
+                  <option value="pending">pending</option>
+                  <option value="done">done</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Task / Client</label>
+              <input id="edit-action-task" type="text" placeholder="Task name / Client" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Association</label>
+              <select id="edit-action-campaign" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-semibold">
+                {campaign_select_options_html}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Action Detail</label>
+              <textarea id="edit-action-detail" rows="3" placeholder="Specific action / visit / call detail" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"></textarea>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Persona Slug (optional)</label>
+              <input id="edit-action-persona" type="text" placeholder="e.g. home_automation_specialist" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono" />
+            </div>
           </div>
-          <div class="flex gap-2 mt-4">
-            <button class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer" onclick="saveEditAction()">Save</button>
-            <button class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="closeEditAction()">Cancel</button>
+          <div class="flex justify-end gap-2 mt-5">
+            <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer" onclick="closeEditAction()">Cancel</button>
+            <button class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5" onclick="saveEditAction()">
+              <i class="fa-solid fa-check text-xs"></i> Save Changes
+            </button>
           </div>
         </div>
       </div>
@@ -752,6 +1152,29 @@ window.addEventListener('hashchange', () => {{
 const ACTIONS_DATA = __ACTIONS_JSON__;
 const API_BASE = window.location.pathname.startsWith('/breadwinner') ? '/breadwinner' : (window.location.pathname.startsWith('/sales-marketing') ? '/sales-marketing' : '');
 
+function filterActions(target) {{
+  document.querySelectorAll('.filter-chip').forEach(btn => {{
+    if (btn.getAttribute('data-filter') === target) {{
+      btn.classList.add('active', 'bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/40');
+      btn.classList.remove('bg-slate-900', 'text-slate-400');
+    }} else {{
+      btn.classList.remove('active', 'bg-cyan-500/20', 'text-cyan-300', 'border-cyan-500/40');
+      btn.classList.add('bg-slate-900', 'text-slate-400');
+    }}
+  }});
+
+  document.querySelectorAll('.campaign-action-group').forEach(group => {{
+    const groupCamp = group.getAttribute('data-campaign-group');
+    if (target === 'all') {{
+      group.style.display = 'block';
+    }} else if (target === 'independent') {{
+      group.style.display = (groupCamp === 'independent') ? 'block' : 'none';
+    }} else {{
+      group.style.display = (groupCamp === target) ? 'block' : 'none';
+    }}
+  }});
+}}
+
 async function agreeCampaign(slug) {{
   const r = await fetch(API_BASE + '/api/campaigns/' + slug + '/agree', {{method: 'POST'}});
   if (r.ok) {{
@@ -786,6 +1209,7 @@ function openEditAction(id) {{
   document.getElementById('edit-action-time').value = a.time || '';
   document.getElementById('edit-action-task').value = a.task || '';
   document.getElementById('edit-action-detail').value = a.action || '';
+  document.getElementById('edit-action-campaign').value = a.campaign_slug || '';
   document.getElementById('edit-action-persona').value = a.persona_slug || '';
   document.getElementById('edit-action-status').value = a.status || 'pending';
   const m = document.getElementById('edit-action-modal');
@@ -800,6 +1224,7 @@ async function saveEditAction() {{
     time: document.getElementById('edit-action-time').value.trim(),
     task: document.getElementById('edit-action-task').value.trim(),
     action: document.getElementById('edit-action-detail').value.trim(),
+    campaign_slug: document.getElementById('edit-action-campaign').value.trim() || null,
     persona_slug: document.getElementById('edit-action-persona').value.trim() || null,
     status: document.getElementById('edit-action-status').value
   }};
@@ -822,6 +1247,7 @@ async function submitNewAction() {{
   const time = document.getElementById('new-action-time').value.trim() || '10:00';
   const task = document.getElementById('new-action-task').value.trim();
   const detail = document.getElementById('new-action-detail').value.trim();
+  const campaign_slug = document.getElementById('new-action-campaign').value.trim() || null;
   if (!task || !detail) {{
     alert('Please enter both a task name and action details.');
     return;
@@ -829,7 +1255,7 @@ async function submitNewAction() {{
   const r = await fetch(API_BASE + '/api/actions', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify({{time: time, task: task, action: detail}})
+    body: JSON.stringify({{time: time, task: task, action: detail, campaign_slug: campaign_slug}})
   }});
   if (r.ok) {{
     location.reload();
