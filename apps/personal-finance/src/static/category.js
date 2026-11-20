@@ -150,6 +150,39 @@ async function updateCat(index, value, selectEl) {
     }
 }
 
+async function createRuleFromTx(index, btn) {
+    const rowEl = document.getElementById("tx-row-" + index);
+    const selectEl = rowEl ? rowEl.querySelector("select") : null;
+    const category = selectEl ? selectEl.value : "";
+    if (!category || category === "Uncategorized") {
+        showToast("Select a category first", "error");
+        return;
+    }
+
+    const baseUrl = window.location.pathname.includes("/personal-finance")
+        ? "/personal-finance"
+        : "";
+
+    let formData = new FormData();
+    formData.append("row_index", index);
+    formData.append("category", category);
+
+    try {
+        const response = await fetch(`${baseUrl}/rules/from-transaction`, {
+            method: "POST",
+            body: formData,
+        });
+        if (response.ok) {
+            showToast(`Rule created and applied for ${category}`);
+            setTimeout(() => location.reload(), 900);
+        } else {
+            showToast("Failed to create rule.", "error");
+        }
+    } catch (err) {
+        showToast("Network error: " + err.message, "error");
+    }
+}
+
 // Global handler for the CSV upload form
 async function handleUpload(event) {
     event.preventDefault();

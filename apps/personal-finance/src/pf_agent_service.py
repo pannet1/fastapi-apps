@@ -12,6 +12,7 @@ from pf_database import (
     apply_category_rules as db_apply_category_rules,
     delete_category_rule as db_delete_category_rule,
     get_category_rules as db_get_category_rules,
+    get_transaction_details as db_get_transaction_details,
     get_opening_balance as db_get_opening_balance,
     get_transactions_df,
     init_db,
@@ -358,6 +359,29 @@ def set_opening_balance(master_file: str, amount: float, as_of_date: Optional[st
     init_db(master_file)
     return db_set_opening_balance(amount, as_of_date)
 
+
+def get_transaction_details(master_file: str, row_index: int) -> Optional[Dict[str, Any]]:
+    init_db(master_file)
+    return db_get_transaction_details(row_index)
+
+
+def _extract_vendor(parts_str: str) -> str:
+    parts = str(parts_str).split("/")
+    return parts[3].strip() if len(parts) > 3 else str(parts_str).strip()
+
+
+def create_rule_from_transaction(master_file: str, row_index: int, category: str) -> Dict[str, Any]:
+    init_db(master_file)
+    details = db_get_transaction_details(row_index)
+    if not details:
+        return {"status": "error", "message": "Transaction not found."}
+    vendor = _extract_vendor(details["particulars"])
+    debit = details["debit"]
+    credit = details["credit"]
+    amount = debit if debit else credit
+    res = db_add_category_rule(vendor, category, amount if amount else None)
+    db_apply_category_rules()
+    return {"status": "success", "vendor": vendor, "amount": amount, "category": category, "rule": res}
 
 def get_category_rules(master_file: str) -> List[Dict[str, Any]]:
     init_db(master_file)

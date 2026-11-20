@@ -110,6 +110,27 @@ def set_opening_balance(amount: float, as_of_date: Optional[str] = None) -> Dict
         conn.close()
 
 
+def get_transaction_details(row_index: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, particulars, debit, credit FROM transactions WHERE id = ?", (row_index,))
+        target = cur.fetchone()
+        if target is None:
+            cur.execute("SELECT id, particulars, debit, credit FROM transactions LIMIT 1 OFFSET ?", (row_index,))
+            target = cur.fetchone()
+        if target is None:
+            return None
+        return {
+            "id": target["id"],
+            "particulars": target["particulars"],
+            "debit": float(target["debit"]) if target["debit"] is not None else 0.0,
+            "credit": float(target["credit"]) if target["credit"] is not None else 0.0,
+        }
+    finally:
+        conn.close()
+
+
 def get_category_rules() -> List[Dict[str, Any]]:
     conn = get_connection()
     try:

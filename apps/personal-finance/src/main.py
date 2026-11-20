@@ -24,6 +24,7 @@ from pf_database import (
 from pf_agent_service import (
     add_category_rule as agent_add_category_rule,
     add_transaction as agent_add_transaction,
+    create_rule_from_transaction as agent_create_rule_from_transaction,
     apply_category_rules as agent_apply_category_rules,
     delete_category_rule as agent_delete_category_rule,
     get_categories as agent_get_categories,
@@ -302,6 +303,13 @@ async def handle_add_rule(vendor: str = Form(...), category: str = Form(...), am
     amt = float(amount) if amount and str(amount).strip() else None
     agent_add_category_rule(MASTER_FILE, vendor=vendor, category=category, amount=amt)
     return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/rules/from-transaction")
+async def handle_rule_from_transaction(row_index: int = Form(...), category: str = Form(...)):
+    initialize_master()
+    agent_create_rule_from_transaction(MASTER_FILE, row_index=row_index, category=category)
+    return RedirectResponse(url="/transactions", status_code=303)
 
 
 @app.post("/rules/update")

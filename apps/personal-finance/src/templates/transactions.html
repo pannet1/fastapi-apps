@@ -125,17 +125,25 @@
                         {{ ("₹" + "{:,.2f}".format(row['Balance'])) if row['Balance'] == row['Balance'] else "" }}
                     </td>
                     <td class="py-3 px-4">
-                        <select onchange="updateCat({{ row['_row_index'] }}, this.value, this)"
-                                data-amount="{{ row['Debit'] if row['Debit'] else row['Credit'] }}"
-                                data-current-cat="{{ row['Category'] }}"
-                                class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
-                            <option selected>{{ row['Category'] }}</option>
-                            {% for cat in categories %}
-                            {% if cat != row['Category'] %}
-                            <option value="{{ cat }}">{{ cat }}</option>
+                        <div class="flex items-center gap-2">
+                            <select onchange="updateCat({{ row['_row_index'] }}, this.value, this)"
+                                    data-amount="{{ row['Debit'] if row['Debit'] else row['Credit'] }}"
+                                    data-current-cat="{{ row['Category'] }}"
+                                    class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
+                                <option selected>{{ row['Category'] }}</option>
+                                {% for cat in categories %}
+                                {% if cat != row['Category'] %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            {% if row['Category'] == 'Uncategorized' %}
+                            <button type="button" onclick="createRuleFromTx({{ row['_row_index'] }}, this)"
+                                    class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition whitespace-nowrap">
+                                Rule
+                            </button>
                             {% endif %}
-                            {% endfor %}
-                        </select>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
