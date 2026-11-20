@@ -317,6 +317,7 @@ async def handle_update_rule(rule_id: int = Form(...), vendor: str = Form(...), 
     initialize_master()
     amt = float(amount) if amount and str(amount).strip() else None
     agent_update_category_rule(MASTER_FILE, rule_id=rule_id, vendor=vendor, category=category, amount=amt)
+    agent_apply_category_rules(MASTER_FILE)
     return RedirectResponse(url="/settings", status_code=303)
 
 
