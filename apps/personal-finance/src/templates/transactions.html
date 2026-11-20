@@ -137,10 +137,16 @@
                                 {% endif %}
                                 {% endfor %}
                             </select>
+                            {% set _parts = row['Particulars'].split('/') %}
+                            {% set _vendor = (_parts[3].strip() if _parts|length > 3 else row['Particulars'].strip()) %}
+                            {% set _amt = (row['Debit'] if row['Debit'] else row['Credit']) %}
+                            {% set _key = _vendor ~ '|' ~ (_amt|round(2) if _amt else '') %}
+                            {% if _key not in (existing_rule_keys or []) %}
                             <button type="button" onclick="createRuleFromTx({{ row['_row_index'] }}, this)"
                                     class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition whitespace-nowrap">
                                 Rule
                             </button>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

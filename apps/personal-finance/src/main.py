@@ -428,6 +428,15 @@ async def view_transactions(
 
     categories = get_categories()
 
+    initialize_master()
+    rules = agent_get_category_rules(MASTER_FILE)
+    existing_rule_keys = set()
+    for r in rules:
+        v = r["vendor"]
+        a = r["amount"]
+        key = f"{v}|{round(float(a), 2) if a is not None else ''}"
+        existing_rule_keys.add(key)
+
     return templates.TemplateResponse(
         "transactions.html",
         {
@@ -448,6 +457,7 @@ async def view_transactions(
             "filter_credit": credit_sum,
             "filter_net": net_spent,
             "available_periods": available_periods,
+            "existing_rule_keys": existing_rule_keys,
         },
     )
 
