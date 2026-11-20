@@ -310,9 +310,22 @@ async def handle_add_rule(vendor: str = Form(...), category: str = Form(...), am
 
 
 @app.post("/rules/from-transaction")
-async def handle_rule_from_transaction(row_index: int = Form(...), category: Optional[str] = Form(None)):
+async def handle_rule_from_transaction(request: Request, row_index: int = Form(...), category: Optional[str] = Form(None)):
     initialize_master()
     agent_create_rule_from_transaction(MASTER_FILE, row_index=row_index, category=category)
+    referer = request.headers.get("referer")
+    if referer:
+        # Preserve the originating page (including filters/pagination)
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(referer)
+            target = parsed.path
+            if parsed.query:
+                target = f"{target}?{parsed.query}"
+            if target:
+                return RedirectResponse(url=target, status_code=303)
+        except Exception:
+            pass
     return RedirectResponse(url="/transactions", status_code=303)
 
 
