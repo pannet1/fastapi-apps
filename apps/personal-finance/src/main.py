@@ -306,7 +306,7 @@ async def handle_add_rule(vendor: str = Form(...), category: str = Form(...), am
 
 
 @app.post("/rules/from-transaction")
-async def handle_rule_from_transaction(row_index: int = Form(...), category: str = Form(...)):
+async def handle_rule_from_transaction(row_index: int = Form(...), category: Optional[str] = Form(None)):
     initialize_master()
     agent_create_rule_from_transaction(MASTER_FILE, row_index=row_index, category=category)
     return RedirectResponse(url="/transactions", status_code=303)

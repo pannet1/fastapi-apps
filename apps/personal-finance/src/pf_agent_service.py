@@ -370,18 +370,32 @@ def _extract_vendor(parts_str: str) -> str:
     return parts[3].strip() if len(parts) > 3 else str(parts_str).strip()
 
 
-def create_rule_from_transaction(master_file: str, row_index: int, category: str) -> Dict[str, Any]:
+def create_rule_from_transaction(master_file: str, row_index: int, category: Optional[str] = None) -> Dict[str, Any]:
     init_db(master_file)
     details = db_get_transaction_details(row_index)
     if not details:
         return {"status": "error", "message": "Transaction not found."}
+    # Fetch full category from DB
+    conn = None
+    import sqlite3
+    from pf_database import get_connection as _gc
+    conn = _gc()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT category FROM transactions WHERE id = ?", (details["id"],))
+        row = cur.fetchone()
+        cat = category or (row["category"] if row else None) or "Uncategorized"
+    finally:
+        conn.close()
+    if cat == "Uncategorized":
+        return {"status": "error", "message": "Transaction is not categorized."}
     vendor = _extract_vendor(details["particulars"])
     debit = details["debit"]
     credit = details["credit"]
     amount = debit if debit else credit
-    res = db_add_category_rule(vendor, category, amount if amount else None)
+    res = db_add_category_rule(vendor, cat, amount if amount else None)
     db_apply_category_rules()
-    return {"status": "success", "vendor": vendor, "amount": amount, "category": category, "rule": res}
+    return {"status": "success", "vendor": vendor, "amount": amount, "category": cat, "rule": res}
 
 def get_category_rules(master_file: str) -> List[Dict[str, Any]]:
     init_db(master_file)
