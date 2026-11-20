@@ -137,12 +137,10 @@
                                 {% endif %}
                                 {% endfor %}
                             </select>
-                            {% if row['Category'] != 'Uncategorized' %}
                             <button type="button" onclick="createRuleFromTx({{ row['_row_index'] }}, this)"
                                     class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition whitespace-nowrap">
                                 Rule
                             </button>
-                            {% endif %}
                         </div>
                     </td>
                 </tr>
