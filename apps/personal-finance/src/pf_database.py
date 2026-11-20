@@ -152,16 +152,39 @@ def get_category_rules() -> List[Dict[str, Any]]:
 
 
 def add_category_rule(vendor: str, category: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    vendor = vendor.strip()
+    category = category.strip()
+    amt = round(float(amount), 2) if amount is not None else None
     conn = get_connection()
     try:
+        cur = conn.cursor()
+        if amt is None:
+            cur.execute(
+                "SELECT id, category FROM category_rules WHERE vendor = ? AND amount IS NULL",
+                (vendor,),
+            )
+        else:
+            cur.execute(
+                "SELECT id, category FROM category_rules WHERE vendor = ? AND amount = ?",
+                (vendor, amt),
+            )
+        existing = cur.fetchone()
+        if existing:
+            # Avoid duplicates: update the existing rule's category instead of inserting
+            with conn:
+                conn.execute(
+                    "UPDATE category_rules SET category = ? WHERE id = ?",
+                    (category, existing["id"]),
+                )
+            return {"status": "updated", "id": existing["id"], "vendor": vendor, "amount": amount, "category": category, "message": "Existing rule updated"}
         with conn:
             cur = conn.cursor()
             cur.execute(
                 "INSERT INTO category_rules (vendor, amount, category) VALUES (?, ?, ?)",
-                (vendor.strip(), (round(float(amount), 2) if amount is not None else None), category.strip()),
+                (vendor, amt, category),
             )
             new_id = cur.lastrowid
-        return {"status": "success", "id": new_id, "vendor": vendor.strip(), "amount": amount, "category": category.strip()}
+        return {"status": "success", "id": new_id, "vendor": vendor, "amount": amount, "category": category}
     finally:
         conn.close()
 
