@@ -300,7 +300,11 @@ def api_add_rule(vendor: str = Form(...), category: str = Form(...), amount: Opt
 @app.post("/rules/add")
 async def handle_add_rule(vendor: str = Form(...), category: str = Form(...), amount: Optional[str] = Form(None)):
     initialize_master()
-    amt = float(amount) if amount and str(amount).strip() else None
+    raw = (amount or "").strip()
+    if raw == "#" or raw == "":
+        amt = None
+    else:
+        amt = float(raw)
     agent_add_category_rule(MASTER_FILE, vendor=vendor, category=category, amount=amt)
     return RedirectResponse(url="/settings", status_code=303)
 
@@ -315,7 +319,11 @@ async def handle_rule_from_transaction(row_index: int = Form(...), category: Opt
 @app.post("/rules/update")
 async def handle_update_rule(rule_id: int = Form(...), vendor: str = Form(...), category: str = Form(...), amount: Optional[str] = Form(None)):
     initialize_master()
-    amt = float(amount) if amount and str(amount).strip() else None
+    raw = (amount or "").strip()
+    if raw == "#" or raw == "":
+        amt = None
+    else:
+        amt = float(raw)
     agent_update_category_rule(MASTER_FILE, rule_id=rule_id, vendor=vendor, category=category, amount=amt)
     agent_apply_category_rules(MASTER_FILE)
     return RedirectResponse(url="/settings", status_code=303)
