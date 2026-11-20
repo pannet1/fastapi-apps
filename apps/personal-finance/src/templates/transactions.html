@@ -177,6 +177,7 @@
                     </td>
                     <td class="py-3 px-4">
                         <select onchange="updateCat({{ row['_row_index'] }}, this.value, this)"
+                                data-amount="{{ row['Debit'] if row['Debit'] else row['Credit'] }}"
                                 data-current-cat="{{ row['Category'] }}"
                                 class="bg-slate-950 border border-slate-700 text-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:border-amber-500 cursor-pointer">
                             <option selected>{{ row['Category'] }}</option>

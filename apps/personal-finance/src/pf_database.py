@@ -52,6 +52,15 @@ def init_db(*args, **kwargs):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS category_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vendor TEXT NOT NULL,
+                amount REAL,
+                category TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
     conn.close()
 
 
@@ -101,6 +110,107 @@ def set_opening_balance(amount: float, as_of_date: Optional[str] = None) -> Dict
         conn.close()
 
 
+def get_category_rules() -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, vendor, amount, category, created_at FROM category_rules ORDER BY id ASC")
+        rows = cur.fetchall()
+        return [
+            {
+                "id": r["id"],
+                "vendor": r["vendor"],
+                "amount": (float(r["amount"]) if r["amount"] is not None else None),
+                "category": r["category"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def add_category_rule(vendor: str, category: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    conn = get_connection()
+    try:
+        with conn:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO category_rules (vendor, amount, category) VALUES (?, ?, ?)",
+                (vendor.strip(), (round(float(amount), 2) if amount is not None else None), category.strip()),
+            )
+            new_id = cur.lastrowid
+        return {"status": "success", "id": new_id, "vendor": vendor.strip(), "amount": amount, "category": category.strip()}
+    finally:
+        conn.close()
+
+
+def update_category_rule(rule_id: int, vendor: str, category: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute(
+                "UPDATE category_rules SET vendor = ?, amount = ?, category = ? WHERE id = ?",
+                (vendor.strip(), (round(float(amount), 2) if amount is not None else None), category.strip(), rule_id),
+            )
+        return {"status": "success", "id": rule_id, "vendor": vendor.strip(), "amount": amount, "category": category.strip()}
+    finally:
+        conn.close()
+
+
+def delete_category_rule(rule_id: int) -> Dict[str, Any]:
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM category_rules WHERE id = ?", (rule_id,))
+        return {"status": "success", "id": rule_id}
+    finally:
+        conn.close()
+
+
+def apply_category_rules() -> Dict[str, Any]:
+    """Apply all category rules to currently uncategorized transactions."""
+    conn = get_connection()
+    try:
+        rules = get_category_rules() if False else None
+    finally:
+        conn.close()
+    # Re-open via helper
+    rules = get_category_rules()
+    updated_total = 0
+    for rule in rules:
+        vendor = rule["vendor"]
+        amount = rule["amount"]
+        category = rule["category"]
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id, debit, credit FROM transactions WHERE particulars LIKE ? AND (category IS NULL OR lower(category) IN ('uncategorized','','none','nan'))",
+                (f"%{vendor}%",),
+            )
+            rows = cur.fetchall()
+            ids = []
+            for r in rows:
+                d = float(r["debit"]) if r["debit"] is not None else 0.0
+                c = float(r["credit"]) if r["credit"] is not None else 0.0
+                amt = d if d else c
+                if amount is not None and round(amt, 2) != round(float(amount), 2):
+                    continue
+                ids.append(r["id"])
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                with conn:
+                    conn.execute(
+                        f"UPDATE transactions SET category = ? WHERE id IN ({placeholders})",
+                        [category] + ids,
+                    )
+                updated_total += len(ids)
+        finally:
+            conn.close()
+    return {"status": "success", "updated_count": updated_total}
+
+
 def get_transactions_df(conn: Optional[sqlite3.Connection] = None) -> pd.DataFrame:
     """Returns all transactions from SQLite as a DataFrame with standard column names."""
     should_close = False
@@ -136,17 +246,18 @@ def update_transaction_category(
     row_index: int,
     category: str,
     forward: bool = True,
+    amount: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Updates category for a transaction in SQLite, supporting forward-matching."""
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, tran_date, particulars, category FROM transactions WHERE id = ?", (row_index,))
+        cur.execute("SELECT id, tran_date, particulars, debit, credit, category FROM transactions WHERE id = ?", (row_index,))
         target = cur.fetchone()
 
         if target is None:
             # Fallback if 0-based offset was passed
-            cur.execute("SELECT id, tran_date, particulars, category FROM transactions LIMIT 1 OFFSET ?", (row_index,))
+            cur.execute("SELECT id, tran_date, particulars, debit, credit, category FROM transactions LIMIT 1 OFFSET ?", (row_index,))
             target = cur.fetchone()
 
         if target is None:
@@ -155,6 +266,9 @@ def update_transaction_category(
         target_id = target["id"]
         target_particulars = target["particulars"]
         target_date_str = target["tran_date"]
+        target_debit = float(target["debit"]) if target["debit"] is not None else 0.0
+        target_credit = float(target["credit"]) if target["credit"] is not None else 0.0
+        target_amt = amount if amount is not None else (target_debit if target_debit else target_credit)
 
         if not forward:
             with conn:
@@ -175,13 +289,33 @@ def update_transaction_category(
         target_dt = pd.to_datetime(target_date_str, dayfirst=True, errors="coerce")
 
         cur.execute(
-            "SELECT id, tran_date, particulars FROM transactions WHERE particulars LIKE ?",
+            "SELECT id, tran_date, particulars, debit, credit FROM transactions WHERE particulars LIKE ?",
             (f"%{target_vendor}%",),
         )
         candidates = cur.fetchall()
 
+        # Determine whether this vendor is ambiguous (multiple distinct amounts).
+        # If so, an explicitly provided amount narrows the match to that amount.
+        distinct_amounts = set()
+        for cand in candidates:
+            c_debit = float(cand["debit"]) if cand["debit"] is not None else 0.0
+            c_credit = float(cand["credit"]) if cand["credit"] is not None else 0.0
+            distinct_amounts.add(round(c_debit if c_debit else c_credit, 2))
+        amount_filter_active = amount is not None and len(distinct_amounts) > 1
+
         matched_ids = []
         for cand in candidates:
+            cand_debit = float(cand["debit"]) if cand["debit"] is not None else 0.0
+            cand_credit = float(cand["credit"]) if cand["credit"] is not None else 0.0
+            cand_amt = round(cand_debit if cand_debit else cand_credit, 2)
+
+            if amount_filter_active:
+                if round(float(amount), 2) != cand_amt:
+                    continue
+                # Amount-specific rule applies to all matching transactions (past + future)
+                matched_ids.append(cand["id"])
+                continue
+
             cand_dt = pd.to_datetime(cand["tran_date"], dayfirst=True, errors="coerce")
             if pd.notna(target_dt) and pd.notna(cand_dt):
                 if cand_dt >= target_dt:

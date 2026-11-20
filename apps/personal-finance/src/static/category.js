@@ -73,6 +73,7 @@ function checkEmptyTxTable() {
 }
 
 async function updateCat(index, value, selectEl) {
+    const amount = selectEl ? selectEl.dataset.amount : null;
     const rowEl = selectEl ? selectEl.closest("tr") : document.getElementById("tx-row-" + index);
     const prevCat = selectEl ? (selectEl.dataset.currentCat || "") : (rowEl ? rowEl.dataset.category : "");
     const urlParams = new URLSearchParams(window.location.search);
@@ -94,6 +95,9 @@ async function updateCat(index, value, selectEl) {
     let formData = new FormData();
     formData.append("row_index", index);
     formData.append("category", value);
+    if (amount !== undefined && amount !== null && amount !== "") {
+        formData.append("amount", amount);
+    }
 
     const baseUrl = window.location.pathname.includes("/personal-finance") 
         ? "/personal-finance" 

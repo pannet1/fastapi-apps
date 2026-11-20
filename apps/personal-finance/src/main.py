@@ -22,12 +22,17 @@ from pf_database import (
     update_transaction_category,
 )
 from pf_agent_service import (
+    add_category_rule as agent_add_category_rule,
     add_transaction as agent_add_transaction,
+    apply_category_rules as agent_apply_category_rules,
+    delete_category_rule as agent_delete_category_rule,
     get_categories as agent_get_categories,
+    get_category_rules as agent_get_category_rules,
     get_opening_balance as agent_get_opening_balance,
     get_personal_finance_summary,
     set_opening_balance as agent_set_opening_balance,
     update_category as agent_update_category,
+    update_category_rule as agent_update_category_rule,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -161,6 +166,7 @@ class CategorizeInput(BaseModel):
     row_index: int
     category: str
     forward: bool = True
+    amount: Optional[float] = None
 
 
 class OpeningBalanceInput(BaseModel):
@@ -177,6 +183,7 @@ def api_categorize(payload: CategorizeInput):
         row_index=payload.row_index,
         category=payload.category,
         forward=payload.forward,
+        amount=payload.amount,
     )
     return res
 
@@ -212,8 +219,9 @@ async def settings_page(request: Request):
     categories = get_categories()
     initialize_master()
     opening_balance = agent_get_opening_balance(MASTER_FILE)
+    rules = agent_get_category_rules(MASTER_FILE)
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "categories": categories, "opening_balance": opening_balance}
+        "settings.html", {"request": request, "categories": categories, "opening_balance": opening_balance, "rules": rules}
     )
 
 
@@ -271,6 +279,51 @@ async def handle_opening_balance_alias(
 async def api_opening_balance_alias(opening_balance: float = Form(...), as_of_date: Optional[str] = Form(None)):
     initialize_master()
     return agent_set_opening_balance(MASTER_FILE, amount=opening_balance, as_of_date=as_of_date if as_of_date else None)
+
+
+# -------------------------------------------------------------
+# Categorization Rules
+# -------------------------------------------------------------
+@app.get("/api/agent/rules")
+def api_get_rules():
+    initialize_master()
+    return {"rules": agent_get_category_rules(MASTER_FILE)}
+
+
+@app.post("/api/agent/rules")
+def api_add_rule(vendor: str = Form(...), category: str = Form(...), amount: Optional[float] = Form(None)):
+    initialize_master()
+    return agent_add_category_rule(MASTER_FILE, vendor=vendor, category=category, amount=amount)
+
+
+@app.post("/rules/add")
+async def handle_add_rule(vendor: str = Form(...), category: str = Form(...), amount: Optional[str] = Form(None)):
+    initialize_master()
+    amt = float(amount) if amount and str(amount).strip() else None
+    agent_add_category_rule(MASTER_FILE, vendor=vendor, category=category, amount=amt)
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/rules/update")
+async def handle_update_rule(rule_id: int = Form(...), vendor: str = Form(...), category: str = Form(...), amount: Optional[str] = Form(None)):
+    initialize_master()
+    amt = float(amount) if amount and str(amount).strip() else None
+    agent_update_category_rule(MASTER_FILE, rule_id=rule_id, vendor=vendor, category=category, amount=amt)
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/rules/delete")
+async def handle_delete_rule(rule_id: int = Form(...)):
+    initialize_master()
+    agent_delete_category_rule(MASTER_FILE, rule_id=rule_id)
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/rules/apply")
+async def handle_apply_rules():
+    initialize_master()
+    agent_apply_category_rules(MASTER_FILE)
+    return RedirectResponse(url="/transactions", status_code=303)
 
 
 @app.get("/transactions", response_class=HTMLResponse)
@@ -720,6 +773,10 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="No valid transactions found in the CSV file.")
 
     res = bulk_insert_parsed_csv(new_data)
+    try:
+        agent_apply_category_rules(MASTER_FILE)
+    except Exception:
+        pass
     return {
         "message": f"Successfully imported bank statement into SQLite. {res['added']} new transactions merged.",
         "added": res["added"],
@@ -728,6 +785,6 @@ async def upload_csv(file: UploadFile = File(...)):
 
 
 @app.post("/update-category")
-async def update_category_form(row_index: int = Form(...), category: str = Form(...)):
-    res = update_transaction_category(row_index=row_index, category=category, forward=True)
+async def update_category_form(row_index: int = Form(...), category: str = Form(...), amount: Optional[float] = Form(None)):
+    res = update_transaction_category(row_index=row_index, category=category, forward=True, amount=amount)
     return res

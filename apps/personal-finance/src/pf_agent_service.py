@@ -7,11 +7,16 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from pf_database import (
+    add_category_rule as db_add_category_rule,
     add_single_transaction,
+    apply_category_rules as db_apply_category_rules,
+    delete_category_rule as db_delete_category_rule,
+    get_category_rules as db_get_category_rules,
     get_opening_balance as db_get_opening_balance,
     get_transactions_df,
     init_db,
     set_opening_balance as db_set_opening_balance,
+    update_category_rule as db_update_category_rule,
     update_transaction_category,
 )
 
@@ -335,10 +340,11 @@ def update_category(
     row_index: int,
     category: str,
     forward: bool = True,
+    amount: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Updates category for a transaction in SQLite, supporting forward-matching."""
     init_db(master_file)
-    return update_transaction_category(row_index=row_index, category=category, forward=forward)
+    return update_transaction_category(row_index=row_index, category=category, forward=forward, amount=amount)
 
 
 def get_opening_balance(master_file: str) -> float:
@@ -351,3 +357,28 @@ def set_opening_balance(master_file: str, amount: float, as_of_date: Optional[st
     """Stores/updates the opening balance used to compute the real account balance."""
     init_db(master_file)
     return db_set_opening_balance(amount, as_of_date)
+
+
+def get_category_rules(master_file: str) -> List[Dict[str, Any]]:
+    init_db(master_file)
+    return db_get_category_rules()
+
+
+def add_category_rule(master_file: str, vendor: str, category: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    init_db(master_file)
+    return db_add_category_rule(vendor, category, amount)
+
+
+def update_category_rule(master_file: str, rule_id: int, vendor: str, category: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    init_db(master_file)
+    return db_update_category_rule(rule_id, vendor, category, amount)
+
+
+def delete_category_rule(master_file: str, rule_id: int) -> Dict[str, Any]:
+    init_db(master_file)
+    return db_delete_category_rule(rule_id)
+
+
+def apply_category_rules(master_file: str) -> Dict[str, Any]:
+    init_db(master_file)
+    return db_apply_category_rules()
