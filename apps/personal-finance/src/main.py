@@ -24,7 +24,9 @@ from pf_database import (
 from pf_agent_service import (
     add_transaction as agent_add_transaction,
     get_categories as agent_get_categories,
+    get_opening_balance as agent_get_opening_balance,
     get_personal_finance_summary,
+    set_opening_balance as agent_set_opening_balance,
     update_category as agent_update_category,
 )
 
@@ -161,6 +163,11 @@ class CategorizeInput(BaseModel):
     forward: bool = True
 
 
+class OpeningBalanceInput(BaseModel):
+    opening_balance: float
+    as_of_date: Optional[str] = None
+
+
 @app.post("/api/agent/categorize")
 def api_categorize(payload: CategorizeInput):
     """Agent/API endpoint: Assign category to an uncategorized transaction."""
@@ -174,14 +181,39 @@ def api_categorize(payload: CategorizeInput):
     return res
 
 
+@app.get("/api/agent/opening-balance")
+def api_get_opening_balance():
+    """Agent/API endpoint: Returns the configured opening balance and real current balance."""
+    initialize_master()
+    summary = get_personal_finance_summary(MASTER_FILE, CATEGORIES_FILE)
+    return {
+        "opening_balance": summary.get("opening_balance", 0.0),
+        "current_balance": summary.get("current_balance", 0.0),
+        "real_balance": summary.get("real_balance", 0.0),
+    }
+
+
+@app.post("/api/agent/opening-balance")
+def api_set_opening_balance(payload: OpeningBalanceInput):
+    """Agent/API endpoint: Set the opening balance used to compute the real account balance."""
+    initialize_master()
+    return agent_set_opening_balance(
+        MASTER_FILE,
+        amount=payload.opening_balance,
+        as_of_date=payload.as_of_date,
+    )
+
+
 # -------------------------------------------------------------
 # Human-Facing UI Routes
 # -------------------------------------------------------------
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     categories = get_categories()
+    initialize_master()
+    opening_balance = agent_get_opening_balance(MASTER_FILE)
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "categories": categories}
+        "settings.html", {"request": request, "categories": categories, "opening_balance": opening_balance}
     )
 
 
@@ -204,6 +236,41 @@ async def add_category(request: Request):
         json.dump(categories, f)
 
     return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/settings/opening-balance")
+async def handle_opening_balance(
+    opening_balance: float = Form(...),
+    as_of_date: Optional[str] = Form(None),
+):
+    """Human endpoint: set the opening balance used to compute the real account balance."""
+    initialize_master()
+    agent_set_opening_balance(
+        MASTER_FILE,
+        amount=opening_balance,
+        as_of_date=as_of_date if as_of_date else None,
+    )
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/opening-balance")
+async def handle_opening_balance_alias(
+    opening_balance: float = Form(...),
+    as_of_date: Optional[str] = Form(None),
+):
+    initialize_master()
+    agent_set_opening_balance(
+        MASTER_FILE,
+        amount=opening_balance,
+        as_of_date=as_of_date if as_of_date else None,
+    )
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/api/opening-balance")
+async def api_opening_balance_alias(opening_balance: float = Form(...), as_of_date: Optional[str] = Form(None)):
+    initialize_master()
+    return agent_set_opening_balance(MASTER_FILE, amount=opening_balance, as_of_date=as_of_date if as_of_date else None)
 
 
 @app.get("/transactions", response_class=HTMLResponse)
@@ -515,6 +582,12 @@ async def index(
     uncat_spent = float(uncat_df["Debit"].sum())
     uncat_count = len(uncat_df)
 
+    initialize_master()
+    opening_balance_val = agent_get_opening_balance(MASTER_FILE)
+    all_credits = pd.to_numeric(df["Credit"], errors="coerce").fillna(0).sum() if "Credit" in df else 0.0
+    all_debits = pd.to_numeric(df["Debit"], errors="coerce").fillna(0).sum() if "Debit" in df else 0.0
+    current_balance_val = round(float(opening_balance_val) + float(all_credits) - float(all_debits), 2)
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -533,6 +606,9 @@ async def index(
             "categories": list(budgets.keys()),
             "today_date": datetime.now().strftime("%Y-%m-%d"),
             "nav": nav,
+            "opening_balance": round(float(opening_balance_val), 2),
+            "current_balance": current_balance_val,
+            "real_balance": current_balance_val,
         },
     )
 

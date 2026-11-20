@@ -48,6 +48,18 @@
     </form>
 </div>
 
+<!-- Real Balance Card -->
+<div class="glass-card rounded-2xl p-6 mb-8 border border-emerald-500/30 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div>
+        <span class="text-xs uppercase font-bold text-emerald-400 tracking-wider block">Current (Real) Balance</span>
+        <h2 class="text-3xl font-black text-white mt-1 font-mono">₹{{ "{:,.2f}".format(current_balance|default(0)) }}</h2>
+        <p class="text-xs text-slate-400 mt-1">Opening balance ₹{{ "{:,.2f}".format(opening_balance|default(0)) }} + net cashflow</p>
+    </div>
+    <a href="/settings" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 transition">
+        Set Opening Balance
+    </a>
+</div>
+
 <!-- Envelope Cards Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for cat, budget in budgets.items() %}

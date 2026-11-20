@@ -49,6 +49,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
     pf_inc = f"${pf_cf.get('total_income', 0.0):,.2f}"
     pf_exp = f"${pf_cf.get('total_expenses', 0.0):,.2f}"
     pf_net = f"${pf_cf.get('net_savings', 0.0):,.2f}"
+    pf_balance = f"${pf_cf.get('current_balance', pf.get('current_balance', 0.0)):,.2f}"
     pf_period_name = pf_p.get("label", "Current Period")
 
     json_str_escaped = json.dumps(summary_data, indent=2).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -189,6 +190,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
                         <span class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm">💰</span>
                     </div>
                     <div class="text-xl font-extrabold text-white font-mono">{pf_net}</div>
+                    <div class="text-[11px] text-slate-400 mt-1">Real Balance: <strong class="text-emerald-300">{pf_balance}</strong></div>
                     <div class="text-[11px] text-slate-400 mt-1">Period: <strong class="text-amber-300">{pf_period_name}</strong></div>
                 </div>
                 <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">

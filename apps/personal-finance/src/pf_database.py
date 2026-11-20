@@ -38,7 +38,67 @@ def init_db(*args, **kwargs):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(tran_date);")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tx_particulars ON transactions(particulars);")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS opening_balance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                amount REAL NOT NULL DEFAULT 0.0,
+                as_of_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
     conn.close()
+
+
+def get_opening_balance() -> float:
+    """Returns the configured opening balance (0.0 if none)."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT amount FROM opening_balance ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row is not None and row["amount"] is not None:
+            return float(row["amount"])
+        cur.execute("SELECT value FROM settings WHERE key = 'opening_balance'")
+        row = cur.fetchone()
+        if row is not None and row["value"] is not None:
+            try:
+                return float(row["value"])
+            except (TypeError, ValueError):
+                return 0.0
+        return 0.0
+    finally:
+        conn.close()
+
+
+def set_opening_balance(amount: float, as_of_date: Optional[str] = None) -> Dict[str, Any]:
+    """Stores/updates the opening balance used to compute the real account balance."""
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute(
+                "INSERT INTO opening_balance (amount, as_of_date) VALUES (?, ?)",
+                (round(float(amount), 2), as_of_date),
+            )
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('opening_balance', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (str(round(float(amount), 2)),),
+            )
+            if as_of_date:
+                conn.execute(
+                    "INSERT INTO settings (key, value) VALUES ('opening_balance_date', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (str(as_of_date).strip(),),
+                )
+        return {"status": "success", "opening_balance": round(float(amount), 2), "as_of_date": as_of_date}
+    finally:
+        conn.close()
 
 
 def get_transactions_df(conn: Optional[sqlite3.Connection] = None) -> pd.DataFrame:

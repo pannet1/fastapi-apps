@@ -8,8 +8,10 @@ import pandas as pd
 
 from pf_database import (
     add_single_transaction,
+    get_opening_balance as db_get_opening_balance,
     get_transactions_df,
     init_db,
+    set_opening_balance as db_set_opening_balance,
     update_transaction_category,
 )
 
@@ -56,16 +58,23 @@ def get_personal_finance_summary(
     init_db(master_file)
     budgets = get_categories(categories_file)
     df = get_transactions_df()
+    opening_balance = db_get_opening_balance()
 
     if df.empty:
         empty_res = {
             "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "No Data"},
-            "cashflow": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "savings_rate_pct": 0.0},
+            "cashflow": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "savings_rate_pct": 0.0, "opening_balance": round(opening_balance, 2), "current_balance": round(opening_balance, 2), "real_balance": round(opening_balance, 2), "latest_balance": 0.0, "bank_balance": 0.0, "statement_balance": 0.0},
+            "opening_balance": round(opening_balance, 2),
+            "current_balance": round(opening_balance, 2),
+            "real_balance": round(opening_balance, 2),
+            "latest_balance": 0.0,
+            "bank_balance": 0.0,
+            "statement_balance": 0.0,
             "envelopes": [],
             "over_budget_envelopes": [],
             "categorization_health": {"uncategorized_count": 0, "uncategorized_amount": 0.0, "pending": []},
             "top_expenses": [],
-            "all_time_totals": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "total_transactions": 0},
+            "all_time_totals": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "total_transactions": 0, "opening_balance": round(opening_balance, 2), "current_balance": round(opening_balance, 2), "real_balance": round(opening_balance, 2), "latest_balance": 0.0, "bank_balance": 0.0, "statement_balance": 0.0},
             "available_periods": [],
         }
         if fmt == "markdown":
@@ -209,17 +218,40 @@ def get_personal_finance_summary(
         - df[df["Category"].astype(str).str.lower() != "income"]["Credit"].fillna(0).sum()
     )
 
+    total_credits_all = float(pd.to_numeric(df["Credit"], errors="coerce").fillna(0).sum())
+    total_debits_all = float(pd.to_numeric(df["Debit"], errors="coerce").fillna(0).sum())
+    net_flow_all = total_credits_all - total_debits_all
+    current_balance = round(opening_balance + net_flow_all, 2)
+
+    latest_balance = 0.0
+    if "Balance" in df.columns:
+        bal_series = pd.to_numeric(df["Balance"], errors="coerce").dropna()
+        if not bal_series.empty:
+            latest_balance = float(bal_series.iloc[-1])
+
     result = {
         "period": {
             "month": month,
             "year": year,
             "label": period_label,
         },
+        "opening_balance": round(opening_balance, 2),
+        "current_balance": current_balance,
+        "real_balance": current_balance,
+        "latest_balance": round(latest_balance, 2),
+        "bank_balance": round(latest_balance, 2),
+        "statement_balance": round(latest_balance, 2),
         "cashflow": {
             "total_income": round(total_income, 2),
             "total_expenses": round(total_expenses, 2),
             "net_savings": net_savings,
             "savings_rate_pct": savings_rate,
+            "opening_balance": round(opening_balance, 2),
+            "current_balance": current_balance,
+            "real_balance": current_balance,
+            "latest_balance": round(latest_balance, 2),
+            "bank_balance": round(latest_balance, 2),
+            "statement_balance": round(latest_balance, 2),
         },
         "envelopes": envelopes,
         "over_budget_envelopes": over_budget_envelopes,
@@ -234,6 +266,12 @@ def get_personal_finance_summary(
             "total_expenses": round(all_expenses, 2),
             "net_savings": round(all_income - all_expenses, 2),
             "total_transactions": len(df),
+            "opening_balance": round(opening_balance, 2),
+            "current_balance": current_balance,
+            "real_balance": current_balance,
+            "latest_balance": round(latest_balance, 2),
+            "bank_balance": round(latest_balance, 2),
+            "statement_balance": round(latest_balance, 2),
         },
         "available_periods": periods,
     }
@@ -254,6 +292,8 @@ def _format_personal_markdown(summary: Dict[str, Any]) -> str:
         f"- **Income**: ${cf.get('total_income', 0.0):,.2f}",
         f"- **Expenses**: ${cf.get('total_expenses', 0.0):,.2f}",
         f"- **Net Savings**: ${cf.get('net_savings', 0.0):,.2f} ({cf.get('savings_rate_pct', 0.0)}% savings rate)",
+        f"- **Opening Balance**: ${cf.get('opening_balance', 0.0):,.2f}",
+        f"- **Current (Real) Balance**: ${cf.get('current_balance', cf.get('real_balance', 0.0)):,.2f}",
     ]
 
     if over:
@@ -299,3 +339,15 @@ def update_category(
     """Updates category for a transaction in SQLite, supporting forward-matching."""
     init_db(master_file)
     return update_transaction_category(row_index=row_index, category=category, forward=forward)
+
+
+def get_opening_balance(master_file: str) -> float:
+    """Returns the configured opening balance."""
+    init_db(master_file)
+    return db_get_opening_balance()
+
+
+def set_opening_balance(master_file: str, amount: float, as_of_date: Optional[str] = None) -> Dict[str, Any]:
+    """Stores/updates the opening balance used to compute the real account balance."""
+    init_db(master_file)
+    return db_set_opening_balance(amount, as_of_date)

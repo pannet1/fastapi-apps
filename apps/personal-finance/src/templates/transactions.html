@@ -156,6 +156,7 @@
                     <th class="py-3.5 px-4">Particulars</th>
                     <th class="py-3.5 px-4 text-right">Debit</th>
                     <th class="py-3.5 px-4 text-right">Credit</th>
+                    <th class="py-3.5 px-4 text-right">Balance</th>
                     <th class="py-3.5 px-4">Category Envelope</th>
                 </tr>
             </thead>
@@ -170,6 +171,9 @@
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                         {{ ("₹" + "{:,.2f}".format(row['Credit'])) if row['Credit'] == row['Credit'] and row['Credit'] != 0 else "" }}
+                    </td>
+                    <td class="py-3 px-4 text-right font-mono font-bold text-cyan-400 whitespace-nowrap">
+                        {{ ("₹" + "{:,.2f}".format(row['Balance'])) if row['Balance'] == row['Balance'] else "" }}
                     </td>
                     <td class="py-3 px-4">
                         <select onchange="updateCat({{ row['_row_index'] }}, this.value, this)"
@@ -186,7 +190,7 @@
                 </tr>
                 {% endfor %}
                 <tr id="no-tx-row" class="{% if transactions %}hidden{% endif %}">
-                    <td colspan="5" class="py-8 text-center text-slate-500 text-xs italic">
+                    <td colspan="6" class="py-8 text-center text-slate-500 text-xs italic">
                         No transactions found matching the selected filter criteria.
                     </td>
                 </tr>
