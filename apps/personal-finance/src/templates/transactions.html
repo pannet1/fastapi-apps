@@ -137,6 +137,7 @@
                                 {% endif %}
                                 {% endfor %}
                             </select>
+                            {% if row['Category'] != 'Uncategorized' %}
                             {% set _parts = row['Particulars'].split('/') %}
                             {% set _vendor = (_parts[3].strip() if _parts|length > 3 else row['Particulars'].strip()) %}
                             {% set _amt = (row['Debit'] if row['Debit'] else row['Credit']) %}
@@ -146,6 +147,7 @@
                                     class="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition whitespace-nowrap">
                                 Rule
                             </button>
+                            {% endif %}
                             {% endif %}
                         </div>
                     </td>
