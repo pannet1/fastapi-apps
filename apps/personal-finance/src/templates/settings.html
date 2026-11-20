@@ -135,4 +135,63 @@
     </p>
 </div>
 
+<!-- Categorization Rules -->
+<div class="glass-card rounded-2xl p-6 sm:p-8 border border-slate-800 shadow-xl mt-8">
+    <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
+        <span class="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl text-lg border border-indigo-500/20">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </span>
+        <div>
+            <h2 class="text-lg font-bold text-white">Categorization Rules</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Manage rules created from the Transactions page.</p>
+        </div>
+    </div>
+
+    <p class="text-xs text-slate-500 mb-6">New rules are created using the "Rule" button on a categorized transaction. Rules apply to matching Uncategorized transactions.</p>
+
+    <form action="/rules/apply" method="post" class="mb-6">
+        <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold border border-slate-700 transition">
+            Apply Rules to Uncategorized
+        </button>
+    </form>
+
+    {% if rules %}
+    <div class="space-y-3">
+        {% for rule in rules %}
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3">
+            <form action="/rules/update" method="post" class="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+                <input type="hidden" name="rule_id" value="{{ rule.id }}" />
+                <div class="sm:col-span-1">
+                    <input type="text" name="vendor" value="{{ rule.vendor }}" required
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div class="sm:col-span-1">
+                    <input type="number" step="0.01" name="amount" value="{{ rule.amount if rule.amount is not none else '' }}" placeholder="any"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div class="sm:col-span-1">
+                    <select name="category" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+                        {% for cat in categories.keys() %}
+                        <option value="{{ cat }}" {% if cat == rule.category %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="sm:col-span-1">
+                    <button type="submit" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-bold transition">
+                        Update
+                    </button>
+                </div>
+                <div class="sm:col-span-1">
+                    <button type="submit" formaction="/rules/delete" name="rule_id" value="{{ rule.id }}" class="w-full py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-bold transition">
+                        Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-500">No rules yet.</p>
+    {% endif %}
+</div>
 {% endblock %}
