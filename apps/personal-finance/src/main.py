@@ -445,6 +445,8 @@ async def view_transactions(
         a = r["amount"]
         key = f"{v}|{round(float(a), 2) if a is not None else ''}"
         existing_rule_keys.add(key)
+        if a is None:
+            existing_rule_keys.add(f"{v}|")
 
     return templates.TemplateResponse(
         "transactions.html",

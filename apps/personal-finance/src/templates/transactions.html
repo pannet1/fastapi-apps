@@ -142,7 +142,7 @@
                             {% set _vendor = (_parts[3].strip() if _parts|length > 3 else row['Particulars'].strip()) %}
                             {% set _amt = (row['Debit'] if row['Debit'] else row['Credit']) %}
                             {% set _key = _vendor ~ '|' ~ (_amt|round(2) if _amt else '') %}
-                            {% if _key not in (existing_rule_keys or []) %}
+                            {% if _key not in (existing_rule_keys or []) and (_vendor ~ '|') not in (existing_rule_keys or []) %}
                             <form action="/rules/from-transaction" method="post" style="display:inline;">
                                 <input type="hidden" name="row_index" value="{{ row['_row_index'] }}" />
                                 <button type="submit"
