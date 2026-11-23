@@ -71,9 +71,6 @@ def get_personal_finance_summary(
             "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "No Data"},
             "opening_balance": round(opening_balance, 2),
             "current_balance": round(opening_balance, 2),
-            "liquid_balance": round(opening_balance, 2),
-            "real_balance": round(opening_balance, 2),
-            "statement_balance": 0.0,
             "cashflow": {
                 "total_income": 0.0,
                 "total_expenses": 0.0,
@@ -253,9 +250,6 @@ def get_personal_finance_summary(
         },
         "opening_balance": round(opening_balance, 2),
         "current_balance": current_balance,
-        "liquid_balance": current_balance,
-        "real_balance": current_balance,
-        "statement_balance": round(latest_balance, 2),
         "cashflow": {
             "total_income": round(total_income, 2),
             "total_expenses": round(total_expenses, 2),
@@ -296,7 +290,7 @@ def _format_personal_markdown(summary: Dict[str, Any]) -> str:
         f"- **Expenses**: ₹{cf.get('total_expenses', 0.0):,.2f}",
         f"- **Net Savings**: ₹{cf.get('net_savings', 0.0):,.2f} ({cf.get('savings_rate_pct', 0.0)}% savings rate)",
         f"- **Opening Balance**: ₹{summary.get('opening_balance', 0.0):,.2f}",
-        f"- **Current Balance**: ₹{summary.get('current_balance', summary.get('liquid_balance', 0.0)):,.2f}",
+        f"- **Current Balance**: ₹{summary.get('current_balance', 0.0):,.2f}",
     ]
 
     if over:

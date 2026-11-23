@@ -50,7 +50,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
     pf_inc = f"₹{pf_cf.get('total_income', 0.0):,.2f}"
     pf_exp = f"₹{pf_cf.get('total_expenses', 0.0):,.2f}"
     pf_net = f"₹{pf_cf.get('net_savings', 0.0):,.2f}"
-    pf_balance = f"₹{pf.get('current_balance', pf.get('liquid_balance', 0.0)):,.2f}"
+    pf_balance = f"₹{pf.get('current_balance', 0.0):,.2f}"
     pf_period_name = pf_p.get("label", "Current Period")
 
     bw_html = ""

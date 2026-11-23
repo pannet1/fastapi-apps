@@ -245,7 +245,7 @@ def _format_unified_markdown(summary: Dict[str, Any]) -> str:
         f"## 💰 Personal Finance ({pf_p.get('label', 'Current Period')})",
         f"- **Income**: ₹{pf_cf.get('total_income', 0.0):,.2f} | **Expenses**: ₹{pf_cf.get('total_expenses', 0.0):,.2f}",
         f"- **Net Cashflow / Savings**: ₹{pf_cf.get('net_savings', 0.0):,.2f}",
-        f"- **Current Balance**: ₹{pf.get('current_balance', pf.get('liquid_balance', 0.0)):,.2f}",
+        f"- **Current Balance**: ₹{pf.get('current_balance', 0.0):,.2f}",
         "",
         "## 🏢 Business Performance",
         f"- **Revenue**: ₹{biz_rp.get('total_sales_revenue', 0.0):,.2f} ({biz_rp.get('sales_count', 0)} sales)",

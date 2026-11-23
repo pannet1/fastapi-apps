@@ -197,7 +197,6 @@ def api_get_opening_balance():
     return {
         "opening_balance": summary.get("opening_balance", 0.0),
         "current_balance": summary.get("current_balance", 0.0),
-        "real_balance": summary.get("real_balance", 0.0),
     }
 
 

@@ -65,6 +65,11 @@ def test_agent_unified_summary_json():
     assert "total_expenses" in pf["cashflow"]
     assert "net_savings" in pf["cashflow"]
     # Balances are consolidated at pf root, not duplicated in cashflow
+    assert "opening_balance" in pf
+    assert "current_balance" in pf
+    assert "liquid_balance" not in pf
+    assert "statement_balance" not in pf
+    assert "real_balance" not in pf
     assert "opening_balance" not in pf["cashflow"]
     assert "current_balance" not in pf["cashflow"]
     assert "envelopes" in pf
