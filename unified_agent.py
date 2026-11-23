@@ -82,15 +82,15 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
     biz_val = biz_summary.get("business_valuation", {})
     biz_inv = biz_summary.get("inventory_health", {})
 
-    personal_net_savings = pf_cf.get("net_savings", 0.0)
+    personal_cash = pf_cf.get("current_balance", pf_summary.get("current_balance", 0.0))
     business_cash = biz_lr.get("cash_collected", 0.0)
     business_receivables = biz_lr.get("outstanding_receivables", 0.0)
     business_min_worth = biz_val.get("conservative_min_worth", 0.0)
     business_max_worth = biz_val.get("optimistic_max_worth", 0.0)
 
-    combined_liquid_cash = round(personal_net_savings + business_cash, 2)
-    combined_net_worth_min = round(business_min_worth + personal_net_savings, 2)
-    combined_net_worth_max = round(business_max_worth + personal_net_savings, 2)
+    combined_liquid_cash = round(personal_cash + business_cash, 2)
+    combined_net_worth_min = round(business_min_worth + personal_cash, 2)
+    combined_net_worth_max = round(business_max_worth + personal_cash, 2)
 
     # Alerts & Action Items
     alerts = []
