@@ -46,6 +46,7 @@ def test_agent_unified_summary_json():
     assert "combined_financial_overview" in data
     assert "personal_finance" in data
     assert "business_performance" in data
+    assert "commercial_campaign" in data
     assert "timestamp" in data
 
     # Verify combined overview
@@ -57,16 +58,19 @@ def test_agent_unified_summary_json():
     assert "key_ratios" in comb
     assert "alerts" in comb
 
-    # Verify personal finance summary
+    # Verify personal finance summary clean structure
     pf = data["personal_finance"]
     assert "cashflow" in pf
     assert "total_income" in pf["cashflow"]
     assert "total_expenses" in pf["cashflow"]
     assert "net_savings" in pf["cashflow"]
+    # Balances are consolidated at pf root, not duplicated in cashflow
+    assert "opening_balance" not in pf["cashflow"]
+    assert "current_balance" not in pf["cashflow"]
     assert "envelopes" in pf
     assert "categorization_health" in pf
 
-    # Verify business performance summary
+    # Verify business performance summary (lean valuation without static formula bloat)
     biz = data["business_performance"]
     assert "revenue_and_profit" in biz
     assert "total_sales_revenue" in biz["revenue_and_profit"]
@@ -75,6 +79,7 @@ def test_agent_unified_summary_json():
     assert "liquidity_and_receivables" in biz
     assert "inventory_health" in biz
     assert "business_valuation" in biz
+    assert "formula_notes" not in biz["business_valuation"]
 
 
 def test_agent_markdown_brief():
@@ -85,11 +90,14 @@ def test_agent_markdown_brief():
     assert "Combined Net Worth" in resp.text
     assert "Business Performance" in resp.text
     assert "Personal Finance" in resp.text
+    assert "₹" in resp.text
+    assert "$" not in resp.text
 
     # Via format=markdown parameter on /agent/summary
     resp_fmt = client.get("/agent/summary?format=markdown")
     assert resp_fmt.status_code == 200
     assert "AI Executive Financial Summary" in resp_fmt.text
+    assert "₹" in resp_fmt.text
 
 
 def test_agent_semantic_query_resolver():
@@ -98,6 +106,11 @@ def test_agent_semantic_query_resolver():
     assert nw["metric"] == "combined_net_worth"
     assert "conservative_min" in nw
     assert "optimistic_max" in nw
+
+    # 1b. Commercial campaign query
+    camp = client.get("/agent/query?q=campaign").json()
+    assert camp["metric"] == "commercial_campaign"
+    assert "campaign" in camp
 
     # 2. Revenue query
     rev = client.get("/agent/query?q=revenue").json()

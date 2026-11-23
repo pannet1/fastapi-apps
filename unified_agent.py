@@ -7,10 +7,19 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parent
 PF_SRC = BASE_DIR / "apps" / "personal-finance" / "src"
 AM_SRC = BASE_DIR / "apps" / "asset-manager" / "src"
+BW_SRC = BASE_DIR / "apps" / "breadwinner" / "src"
 
-for p in [str(PF_SRC), str(AM_SRC), str(BASE_DIR)]:
+for p in [str(PF_SRC), str(AM_SRC), str(BW_SRC), str(BASE_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)
+
+try:
+    import sm_database as bw_db
+except ImportError:
+    import importlib.util
+    spec_bw = importlib.util.spec_from_file_location("sm_database", str(BW_SRC / "sm_database.py"))
+    bw_db = importlib.util.module_from_spec(spec_bw)
+    spec_bw.loader.exec_module(bw_db)
 
 try:
     from pf_agent_service import (
@@ -58,10 +67,49 @@ PF_MASTER_FILE = str(PF_SRC.parent / "data" / "finance.db")
 PF_CATEGORIES_FILE = str(PF_SRC / "categories.json")
 
 
+def get_commercial_campaign_summary() -> Optional[Dict[str, Any]]:
+    """Fetches active commercial campaign and field action health from Breadwinner telemetry."""
+    try:
+        conn = bw_db.get_connection()
+        c = conn.cursor()
+        c.execute("SELECT * FROM campaigns WHERE status = 'active' LIMIT 1")
+        camp = c.fetchone()
+        if not camp:
+            conn.close()
+            return None
+        active_camp = dict(camp)
+        c_slug = active_camp["slug"]
+        c.execute("SELECT status FROM active_actions WHERE campaign_slug = ?", (c_slug,))
+        c_actions = [dict(r) for r in c.fetchall()]
+        c.execute("SELECT COUNT(*) as cnt FROM active_actions WHERE status != 'done'")
+        pending_total_row = c.fetchone()
+        conn.close()
+
+        c_total = len(c_actions)
+        c_done = len([a for a in c_actions if a.get("status") == "done"])
+
+        return {
+            "slug": active_camp.get("slug"),
+            "name": active_camp.get("name"),
+            "target_revenue": float(active_camp.get("target_revenue") or 0.0),
+            "start_date": active_camp.get("start_date"),
+            "end_date": active_camp.get("end_date"),
+            "status": active_camp.get("status"),
+            "persona_slug": active_camp.get("persona_slug"),
+            "field_actions_total": c_total,
+            "field_actions_done": c_done,
+            "field_actions_pending": c_total - c_done,
+            "completion_rate_pct": round((c_done / c_total) * 100, 1) if c_total > 0 else 0.0,
+            "all_pending_field_actions_count": int(pending_total_row["cnt"]) if pending_total_row else 0,
+        }
+    except Exception:
+        return None
+
+
 def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None, fmt: str = "json") -> Dict[str, Any]:
     """
-    Unified summary combining Personal Finance and Business Performance
-    into a single machine-readable or markdown response.
+    Unified summary combining Personal Finance, Business Performance,
+    and Breadwinner commercial campaign intelligence into a single machine-readable or markdown response.
     """
     # 1. Personal Finance Summary
     pf_summary = get_personal_finance_summary(
@@ -75,14 +123,17 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
     finally:
         db.close()
 
-    # 3. Combined Financial Overview
+    # 3. Commercial Campaign Summary (Breadwinner)
+    bw_summary = get_commercial_campaign_summary()
+
+    # 4. Combined Financial Overview
     pf_cf = pf_summary.get("cashflow", {})
     biz_rp = biz_summary.get("revenue_and_profit", {})
     biz_lr = biz_summary.get("liquidity_and_receivables", {})
     biz_val = biz_summary.get("business_valuation", {})
     biz_inv = biz_summary.get("inventory_health", {})
 
-    personal_cash = pf_cf.get("current_balance", pf_summary.get("current_balance", 0.0))
+    personal_cash = pf_summary.get("current_balance", pf_cf.get("current_balance", 0.0))
     business_cash = biz_lr.get("cash_collected", 0.0)
     business_receivables = biz_lr.get("outstanding_receivables", 0.0)
     business_min_worth = biz_val.get("conservative_min_worth", 0.0)
@@ -94,11 +145,18 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
 
     # Alerts & Action Items
     alerts = []
+    if bw_summary and bw_summary.get("field_actions_total", 0) > 0 and bw_summary.get("completion_rate_pct", 0.0) == 0.0:
+        alerts.append({
+            "type": "campaign_sluggish_velocity",
+            "severity": "warning",
+            "message": f"Active commercial campaign '{bw_summary['name']}' has 0% field action completion with deadline on {bw_summary['end_date']}.",
+        })
+
     for over in pf_summary.get("over_budget_envelopes", []):
         alerts.append({
             "type": "personal_budget_overrun",
             "severity": "warning",
-            "message": f"Personal Envelope '{over['category']}' is over budget by ${over['over_by']:,.2f} (Spent ${over['actual']:,.2f} / Budget ${over['budgeted']:,.2f})",
+            "message": f"Personal Envelope '{over['category']}' is over budget by ₹{over['over_by']:,.2f} (Spent ₹{over['actual']:,.2f} / Budget ₹{over['budgeted']:,.2f})",
         })
 
     cat_health = pf_summary.get("categorization_health", {})
@@ -106,14 +164,14 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
         alerts.append({
             "type": "uncategorized_transactions",
             "severity": "info",
-            "message": f"{cat_health['uncategorized_count']} personal transactions (${cat_health['uncategorized_amount']:,.2f}) need category classification.",
+            "message": f"{cat_health['uncategorized_count']} personal transactions (₹{cat_health['uncategorized_amount']:,.2f}) need category classification.",
         })
 
     for debtor in biz_lr.get("unpaid_debtors", []):
         alerts.append({
             "type": "unpaid_business_receivable",
             "severity": "warning",
-            "message": f"Customer '{debtor['customer']}' has pending balance due of ${debtor['balance_due']:,.2f} from sale on {debtor['sale_date']}.",
+            "message": f"Customer '{debtor['customer']}' has pending balance due of ₹{debtor['balance_due']:,.2f} from sale on {debtor['sale_date']}.",
         })
 
     if biz_inv.get("in_stock_count", 0) < 3:
@@ -139,6 +197,7 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
             "alerts_count": len(alerts),
             "alerts": alerts,
         },
+        "commercial_campaign": bw_summary,
         "personal_finance": pf_summary,
         "business_performance": biz_summary,
     }
@@ -150,6 +209,7 @@ def get_unified_summary(month: Optional[int] = None, year: Optional[int] = None,
 
 def _format_unified_markdown(summary: Dict[str, Any]) -> str:
     comb = summary.get("combined_financial_overview", {})
+    bw = summary.get("commercial_campaign")
     pf = summary.get("personal_finance", {})
     biz = summary.get("business_performance", {})
     alerts = comb.get("alerts", [])
@@ -166,21 +226,34 @@ def _format_unified_markdown(summary: Dict[str, Any]) -> str:
         f"**Generated**: {summary.get('timestamp', '')[:19].replace('T', ' ')}",
         "",
         "## 🌐 Combined Financial Position",
-        f"- **Combined Net Worth**: **${comb.get('combined_net_worth_range', {}).get('conservative_min', 0.0):,.2f}** (Conservative) to **${comb.get('combined_net_worth_range', {}).get('optimistic_max', 0.0):,.2f}** (Optimistic)",
-        f"- **Combined Liquid Cash**: **${comb.get('combined_liquid_cash', 0.0):,.2f}**",
+        f"- **Combined Net Worth**: **₹{comb.get('combined_net_worth_range', {}).get('conservative_min', 0.0):,.2f}** (Conservative) to **₹{comb.get('combined_net_worth_range', {}).get('optimistic_max', 0.0):,.2f}** (Optimistic)",
+        f"- **Combined Liquid Cash**: **₹{comb.get('combined_liquid_cash', 0.0):,.2f}**",
         f"- **Health Ratios**: Personal Savings Rate: **{comb.get('key_ratios', {}).get('personal_savings_rate_pct', 0.0)}%** | Business Margin: **{comb.get('key_ratios', {}).get('business_gross_margin_pct', 0.0)}%**",
+    ]
+
+    if bw:
+        lines.extend([
+            "",
+            "## 🎯 Commercial Campaign (Breadwinner)",
+            f"- **Active Campaign**: **{bw.get('name')}** (`{bw.get('slug')}`)",
+            f"- **Target Revenue**: ₹{bw.get('target_revenue', 0.0):,.2f} | **Deadline**: {bw.get('end_date')}",
+            f"- **Field Actions**: {bw.get('field_actions_done', 0)}/{bw.get('field_actions_total', 0)} completed ({bw.get('completion_rate_pct', 0.0)}%) | {bw.get('all_pending_field_actions_count', 0)} total pending actions",
+        ])
+
+    lines.extend([
         "",
         f"## 💰 Personal Finance ({pf_p.get('label', 'Current Period')})",
-        f"- **Income**: ${pf_cf.get('total_income', 0.0):,.2f} | **Expenses**: ${pf_cf.get('total_expenses', 0.0):,.2f}",
-        f"- **Net Cashflow / Savings**: ${pf_cf.get('net_savings', 0.0):,.2f}",
+        f"- **Income**: ₹{pf_cf.get('total_income', 0.0):,.2f} | **Expenses**: ₹{pf_cf.get('total_expenses', 0.0):,.2f}",
+        f"- **Net Cashflow / Savings**: ₹{pf_cf.get('net_savings', 0.0):,.2f}",
+        f"- **Current Balance**: ₹{pf.get('current_balance', pf.get('liquid_balance', 0.0)):,.2f}",
         "",
         "## 🏢 Business Performance",
-        f"- **Revenue**: ${biz_rp.get('total_sales_revenue', 0.0):,.2f} ({biz_rp.get('sales_count', 0)} sales)",
-        f"- **COGS & Profit**: ${biz_rp.get('cost_of_goods_sold', 0.0):,.2f} COGS | Gross Profit: **${biz_rp.get('gross_profit', 0.0):,.2f}** ({biz_rp.get('gross_margin_pct', 0.0)}%)",
-        f"- **Cash & Receivables**: ${biz_lr.get('cash_collected', 0.0):,.2f} collected | **${biz_lr.get('outstanding_receivables', 0.0):,.2f}** pending receivables",
-        f"- **Inventory**: {biz_inv.get('in_stock_count', 0)} units in stock (${biz_inv.get('stock_cost_basis', 0.0):,.2f} cost basis / ${biz_inv.get('stock_market_value', 0.0):,.2f} market value)",
-        f"- **Business Valuation**: Conservative ${biz_val.get('conservative_min_worth', 0.0):,.2f} | Optimistic ${biz_val.get('optimistic_max_worth', 0.0):,.2f}",
-    ]
+        f"- **Revenue**: ₹{biz_rp.get('total_sales_revenue', 0.0):,.2f} ({biz_rp.get('sales_count', 0)} sales)",
+        f"- **COGS & Profit**: ₹{biz_rp.get('cost_of_goods_sold', 0.0):,.2f} COGS | Gross Profit: **₹{biz_rp.get('gross_profit', 0.0):,.2f}** ({biz_rp.get('gross_margin_pct', 0.0)}%)",
+        f"- **Cash & Receivables**: ₹{biz_lr.get('cash_collected', 0.0):,.2f} collected | **₹{biz_lr.get('outstanding_receivables', 0.0):,.2f}** pending receivables",
+        f"- **Inventory**: {biz_inv.get('in_stock_count', 0)} units in stock (₹{biz_inv.get('stock_cost_basis', 0.0):,.2f} cost basis / ₹{biz_inv.get('stock_market_value', 0.0):,.2f} market value)",
+        f"- **Business Valuation**: Conservative ₹{biz_val.get('conservative_min_worth', 0.0):,.2f} | Optimistic ₹{biz_val.get('optimistic_max_worth', 0.0):,.2f}",
+    ])
 
     if alerts:
         lines.append("")
@@ -255,6 +328,12 @@ def query_quick_metric(q: str, month: Optional[int] = None, year: Optional[int] 
             "query": q,
             "metric": "priority_alerts",
             "alerts": comb["alerts"],
+        }
+    elif any(k in q_norm for k in ["campaign", "sprint", "breadwinner"]):
+        return {
+            "query": q,
+            "metric": "commercial_campaign",
+            "campaign": data.get("commercial_campaign"),
         }
     else:
         return {

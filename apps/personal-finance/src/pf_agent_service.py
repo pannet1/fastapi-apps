@@ -69,18 +69,27 @@ def get_personal_finance_summary(
     if df.empty:
         empty_res = {
             "period": {"month": month or datetime.now().month, "year": year or datetime.now().year, "label": "No Data"},
-            "cashflow": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "savings_rate_pct": 0.0, "opening_balance": round(opening_balance, 2), "current_balance": round(opening_balance, 2), "real_balance": round(opening_balance, 2), "latest_balance": 0.0, "bank_balance": 0.0, "statement_balance": 0.0},
             "opening_balance": round(opening_balance, 2),
             "current_balance": round(opening_balance, 2),
+            "liquid_balance": round(opening_balance, 2),
             "real_balance": round(opening_balance, 2),
-            "latest_balance": 0.0,
-            "bank_balance": 0.0,
             "statement_balance": 0.0,
+            "cashflow": {
+                "total_income": 0.0,
+                "total_expenses": 0.0,
+                "net_savings": 0.0,
+                "savings_rate_pct": 0.0,
+            },
             "envelopes": [],
             "over_budget_envelopes": [],
             "categorization_health": {"uncategorized_count": 0, "uncategorized_amount": 0.0, "pending": []},
             "top_expenses": [],
-            "all_time_totals": {"total_income": 0.0, "total_expenses": 0.0, "net_savings": 0.0, "total_transactions": 0, "opening_balance": round(opening_balance, 2), "current_balance": round(opening_balance, 2), "real_balance": round(opening_balance, 2), "latest_balance": 0.0, "bank_balance": 0.0, "statement_balance": 0.0},
+            "all_time_totals": {
+                "total_income": 0.0,
+                "total_expenses": 0.0,
+                "net_savings": 0.0,
+                "total_transactions": 0,
+            },
             "available_periods": [],
         }
         if fmt == "markdown":
@@ -181,7 +190,8 @@ def get_personal_finance_summary(
                 })
 
     net_savings = round(total_income - total_expenses, 2)
-    savings_rate = round((net_savings / total_income * 100), 1) if total_income > 0 else 0.0
+    # Guard against division-by-near-zero distortion (e.g. income < 100 yielding -70,000% savings rate)
+    savings_rate = round((net_savings / total_income * 100), 1) if total_income >= 100.0 else 0.0
 
     # Categorization health
     uncat_mask = (
@@ -243,21 +253,14 @@ def get_personal_finance_summary(
         },
         "opening_balance": round(opening_balance, 2),
         "current_balance": current_balance,
+        "liquid_balance": current_balance,
         "real_balance": current_balance,
-        "latest_balance": round(latest_balance, 2),
-        "bank_balance": round(latest_balance, 2),
         "statement_balance": round(latest_balance, 2),
         "cashflow": {
             "total_income": round(total_income, 2),
             "total_expenses": round(total_expenses, 2),
             "net_savings": net_savings,
             "savings_rate_pct": savings_rate,
-            "opening_balance": round(opening_balance, 2),
-            "current_balance": current_balance,
-            "real_balance": current_balance,
-            "latest_balance": round(latest_balance, 2),
-            "bank_balance": round(latest_balance, 2),
-            "statement_balance": round(latest_balance, 2),
         },
         "envelopes": envelopes,
         "over_budget_envelopes": over_budget_envelopes,
@@ -272,12 +275,6 @@ def get_personal_finance_summary(
             "total_expenses": round(all_expenses, 2),
             "net_savings": round(all_income - all_expenses, 2),
             "total_transactions": len(df),
-            "opening_balance": round(opening_balance, 2),
-            "current_balance": current_balance,
-            "real_balance": current_balance,
-            "latest_balance": round(latest_balance, 2),
-            "bank_balance": round(latest_balance, 2),
-            "statement_balance": round(latest_balance, 2),
         },
         "available_periods": periods,
     }
@@ -295,22 +292,22 @@ def _format_personal_markdown(summary: Dict[str, Any]) -> str:
 
     lines = [
         f"### 💰 Personal Finance Summary — {p.get('label', 'Current')}",
-        f"- **Income**: ${cf.get('total_income', 0.0):,.2f}",
-        f"- **Expenses**: ${cf.get('total_expenses', 0.0):,.2f}",
-        f"- **Net Savings**: ${cf.get('net_savings', 0.0):,.2f} ({cf.get('savings_rate_pct', 0.0)}% savings rate)",
-        f"- **Opening Balance**: ${cf.get('opening_balance', 0.0):,.2f}",
-        f"- **Current (Real) Balance**: ${cf.get('current_balance', cf.get('real_balance', 0.0)):,.2f}",
+        f"- **Income**: ₹{cf.get('total_income', 0.0):,.2f}",
+        f"- **Expenses**: ₹{cf.get('total_expenses', 0.0):,.2f}",
+        f"- **Net Savings**: ₹{cf.get('net_savings', 0.0):,.2f} ({cf.get('savings_rate_pct', 0.0)}% savings rate)",
+        f"- **Opening Balance**: ₹{summary.get('opening_balance', 0.0):,.2f}",
+        f"- **Current Balance**: ₹{summary.get('current_balance', summary.get('liquid_balance', 0.0)):,.2f}",
     ]
 
     if over:
         lines.append("- **⚠️ Over Budget Envelopes**:")
         for item in over:
-            lines.append(f"  - **{item['category']}**: Spent ${item['actual']:,.2f} vs Budget ${item['budgeted']:,.2f} (+${item['over_by']:,.2f} over)")
+            lines.append(f"  - **{item['category']}**: Spent ₹{item['actual']:,.2f} vs Budget ₹{item['budgeted']:,.2f} (+₹{item['over_by']:,.2f} over)")
     else:
         lines.append("- **✅ Budget Status**: All envelopes are within allocated limits.")
 
     if cat_health.get("uncategorized_count", 0) > 0:
-        lines.append(f"- **⚠️ Categorization Needed**: {cat_health['uncategorized_count']} transactions (${cat_health['uncategorized_amount']:,.2f}) are uncategorized.")
+        lines.append(f"- **⚠️ Categorization Needed**: {cat_health['uncategorized_count']} transactions (₹{cat_health['uncategorized_amount']:,.2f}) are uncategorized.")
 
     return "\n".join(lines)
 

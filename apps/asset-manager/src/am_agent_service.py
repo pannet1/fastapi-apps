@@ -94,10 +94,6 @@ def get_business_performance_summary(db: Session, fmt: str = "json") -> Dict[str
         "business_valuation": {
             "conservative_min_worth": conservative_min_worth,
             "optimistic_max_worth": optimistic_max_worth,
-            "formula_notes": {
-                "min_worth": "Stock Cost Basis + Cash Collected",
-                "max_worth": "Fixed Assets + Stock Market Value + Outstanding Receivables + Cash Collected",
-            },
         },
     }
 
@@ -116,20 +112,20 @@ def _format_business_markdown(summary: Dict[str, Any]) -> str:
 
     lines = [
         "### 🏢 Business Performance Summary",
-        f"- **Revenue**: ${rp.get('total_sales_revenue', 0.0):,.2f} ({rp.get('sales_count', 0)} sales)",
-        f"- **COGS (Cost of Goods Sold)**: ${rp.get('cost_of_goods_sold', 0.0):,.2f}",
-        f"- **Gross Profit**: ${rp.get('gross_profit', 0.0):,.2f} ({rp.get('gross_margin_pct', 0.0)}% margin)",
-        f"- **Cash Collected**: ${lr.get('cash_collected', 0.0):,.2f}",
-        f"- **Outstanding Receivables**: ${lr.get('outstanding_receivables', 0.0):,.2f} ({len(debtors)} unpaid)",
-        f"- **Current Inventory**: {inv.get('in_stock_count', 0)} units | ${inv.get('stock_cost_basis', 0.0):,.2f} cost basis | ${inv.get('stock_market_value', 0.0):,.2f} market value",
-        f"- **Fixed Assets Value**: ${fa.get('total_asset_value', 0.0):,.2f}",
-        f"- **Business Net Worth**: Conservative **${val.get('conservative_min_worth', 0.0):,.2f}** | Optimistic **${val.get('optimistic_max_worth', 0.0):,.2f}**",
+        f"- **Revenue**: ₹{rp.get('total_sales_revenue', 0.0):,.2f} ({rp.get('sales_count', 0)} sales)",
+        f"- **COGS (Cost of Goods Sold)**: ₹{rp.get('cost_of_goods_sold', 0.0):,.2f}",
+        f"- **Gross Profit**: ₹{rp.get('gross_profit', 0.0):,.2f} ({rp.get('gross_margin_pct', 0.0)}% margin)",
+        f"- **Cash Collected**: ₹{lr.get('cash_collected', 0.0):,.2f}",
+        f"- **Outstanding Receivables**: ₹{lr.get('outstanding_receivables', 0.0):,.2f} ({len(debtors)} unpaid)",
+        f"- **Current Inventory**: {inv.get('in_stock_count', 0)} units | ₹{inv.get('stock_cost_basis', 0.0):,.2f} cost basis | ₹{inv.get('stock_market_value', 0.0):,.2f} market value",
+        f"- **Fixed Assets Value**: ₹{fa.get('total_asset_value', 0.0):,.2f}",
+        f"- **Business Net Worth**: Conservative **₹{val.get('conservative_min_worth', 0.0):,.2f}** | Optimistic **₹{val.get('optimistic_max_worth', 0.0):,.2f}**",
     ]
 
     if debtors:
         lines.append("- **⚠️ Pending Debtors**:")
         for d in debtors[:5]:
-            lines.append(f"  - **{d['customer']}**: Owe ${d['balance_due']:,.2f} (Paid ${d['amount_paid']:,.2f} of ${d['total_amount']:,.2f})")
+            lines.append(f"  - **{d['customer']}**: Owe ₹{d['balance_due']:,.2f} (Paid ₹{d['amount_paid']:,.2f} of ₹{d['total_amount']:,.2f})")
 
     return "\n".join(lines)
 

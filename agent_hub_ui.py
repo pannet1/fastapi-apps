@@ -32,25 +32,51 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
         alerts_html += '</div>'
 
     # Format numbers safely
-    comb_net_min = f"${comb.get('combined_net_worth_range', {}).get('conservative_min', 0.0):,.2f}"
-    comb_net_max = f"${comb.get('combined_net_worth_range', {}).get('optimistic_max', 0.0):,.2f}"
-    comb_cash = f"${comb.get('combined_liquid_cash', 0.0):,.2f}"
+    bw = summary_data.get("commercial_campaign")
+    comb_net_min = f"₹{comb.get('combined_net_worth_range', {}).get('conservative_min', 0.0):,.2f}"
+    comb_net_max = f"₹{comb.get('combined_net_worth_range', {}).get('optimistic_max', 0.0):,.2f}"
+    comb_cash = f"₹{comb.get('combined_liquid_cash', 0.0):,.2f}"
     pf_savings_rate = f"{comb.get('key_ratios', {}).get('personal_savings_rate_pct', 0.0)}%"
     biz_margin = f"{comb.get('key_ratios', {}).get('business_gross_margin_pct', 0.0)}%"
 
-    biz_rev = f"${biz_rp.get('total_sales_revenue', 0.0):,.2f}"
-    biz_profit = f"${biz_rp.get('gross_profit', 0.0):,.2f}"
-    biz_cogs = f"${biz_rp.get('cost_of_goods_sold', 0.0):,.2f}"
-    biz_cash = f"${biz_lr.get('cash_collected', 0.0):,.2f}"
-    biz_rec = f"${biz_lr.get('outstanding_receivables', 0.0):,.2f}"
-    biz_stock_cost = f"${biz_inv.get('stock_cost_basis', 0.0):,.2f}"
-    biz_stock_market = f"${biz_inv.get('stock_market_value', 0.0):,.2f}"
+    biz_rev = f"₹{biz_rp.get('total_sales_revenue', 0.0):,.2f}"
+    biz_profit = f"₹{biz_rp.get('gross_profit', 0.0):,.2f}"
+    biz_cogs = f"₹{biz_rp.get('cost_of_goods_sold', 0.0):,.2f}"
+    biz_cash = f"₹{biz_lr.get('cash_collected', 0.0):,.2f}"
+    biz_rec = f"₹{biz_lr.get('outstanding_receivables', 0.0):,.2f}"
+    biz_stock_cost = f"₹{biz_inv.get('stock_cost_basis', 0.0):,.2f}"
+    biz_stock_market = f"₹{biz_inv.get('stock_market_value', 0.0):,.2f}"
 
-    pf_inc = f"${pf_cf.get('total_income', 0.0):,.2f}"
-    pf_exp = f"${pf_cf.get('total_expenses', 0.0):,.2f}"
-    pf_net = f"${pf_cf.get('net_savings', 0.0):,.2f}"
-    pf_balance = f"${pf_cf.get('current_balance', pf.get('current_balance', 0.0)):,.2f}"
+    pf_inc = f"₹{pf_cf.get('total_income', 0.0):,.2f}"
+    pf_exp = f"₹{pf_cf.get('total_expenses', 0.0):,.2f}"
+    pf_net = f"₹{pf_cf.get('net_savings', 0.0):,.2f}"
+    pf_balance = f"₹{pf.get('current_balance', pf.get('liquid_balance', 0.0)):,.2f}"
     pf_period_name = pf_p.get("label", "Current Period")
+
+    bw_html = ""
+    if bw:
+        bw_html = f"""
+        <!-- Breadwinner Commercial Sprint Banner -->
+        <div class="mb-8 p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900 to-indigo-950/30 border border-amber-500/30">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">
+                        <i class="fa-solid fa-bullseye"></i> Active Commercial Sprint (Breadwinner)
+                    </div>
+                    <div class="text-lg font-extrabold text-white">{bw.get('name')} <span class="text-xs font-mono text-slate-400">({bw.get('slug')})</span></div>
+                    <div class="text-xs text-slate-400 mt-0.5">Target: <strong class="text-amber-300 font-mono">₹{bw.get('target_revenue', 0.0):,.2f}</strong> | Deadline: <span class="font-mono text-slate-300">{bw.get('end_date')}</span></div>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="text-right">
+                        <div class="text-xs text-slate-400">Field Actions</div>
+                        <div class="text-base font-bold text-white font-mono">{bw.get('field_actions_done', 0)} / {bw.get('field_actions_total', 0)} ({bw.get('completion_rate_pct', 0.0)}%)</div>
+                    </div>
+                    <a href="/breadwinner/" target="_blank" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition">
+                        Open Breadwinner →
+                    </a>
+                </div>
+            </div>
+        </div>"""
 
     json_str_escaped = json.dumps(summary_data, indent=2).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     md_str_escaped = markdown_brief.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -131,6 +157,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
         </div>
 
         {alerts_html}
+        {bw_html}
 
         <!-- KPI Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
@@ -288,7 +315,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Amount ($)</label>
+                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Amount (₹)</label>
                                 <input type="number" step="0.01" name="amount" placeholder="0.00" required
                                        class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono font-bold" />
                             </div>
@@ -311,7 +338,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Amount Collected / Paid ($)</label>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Amount Collected / Paid (₹)</label>
                             <input id="sale-paid" type="number" step="0.01" placeholder="Initial payment collected" required
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
                         </div>
@@ -333,7 +360,7 @@ def render_agent_hub_html(summary_data: Dict[str, Any], markdown_brief: str) -> 
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono" />
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Payment Installment Amount ($)</label>
+                            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Payment Installment Amount (₹)</label>
                             <input id="pay-amount" type="number" step="0.01" placeholder="Amount collected" required
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono font-bold" />
                         </div>
