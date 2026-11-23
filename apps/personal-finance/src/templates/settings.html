@@ -24,11 +24,14 @@
                     <div class="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 focus-within:border-amber-500 transition">
                         <span class="w-2/5 text-xs font-semibold text-slate-200 px-2 truncate">{{ name }}</span>
                         <div class="w-1/4">
-                            <select name="is_income_{{ name }}"
-                                    class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-white focus:outline-none focus:border-amber-500">
-                                <option value="0" {% if meta.is_income == 0 %}selected{% endif %}>(-) Expense</option>
-                                <option value="1" {% if meta.is_income == 1 %}selected{% endif %}>(+) Income</option>
-                            </select>
+                            <input type="hidden" name="is_income_{{ name }}" id="is_inc_{{ loop.index }}" value="{{ meta.is_income }}">
+                            <button type="button"
+                                    onclick="toggleCategoryType(this, 'is_inc_{{ loop.index }}')"
+                                    class="w-full py-1.5 px-2 rounded-lg text-[11px] font-semibold transition border flex items-center justify-center gap-1 cursor-pointer {% if meta.is_income == 1 %}border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20{% else %}border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20{% endif %}"
+                                    title="Click to toggle between Expense and Income">
+                                <i class="fa-solid {% if meta.is_income == 1 %}fa-arrow-up-long{% else %}fa-arrow-down-long{% endif %} text-[9px]"></i>
+                                <span>{% if meta.is_income == 1 %}(+) Income{% else %}(-) Expense{% endif %}</span>
+                            </button>
                         </div>
                         <div class="relative w-1/3">
                             <span class="absolute left-3 top-2 text-xs text-slate-500 font-mono">₹</span>
@@ -54,11 +57,15 @@
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
                         </div>
                         <div class="sm:col-span-3">
-                            <select name="new_is_income"
-                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
-                                <option value="0">(-) Expense</option>
-                                <option value="1">(+) Income</option>
-                            </select>
+                            <input type="hidden" name="new_is_income" id="new_is_income_input" value="0">
+                            <button type="button"
+                                    id="new_is_income_btn"
+                                    onclick="toggleNewCategoryType()"
+                                    class="w-full py-2 px-3 rounded-xl text-xs font-semibold transition border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="Click to toggle between Expense (-) and Income (+)">
+                                <i class="fa-solid fa-arrow-down-long text-[10px]"></i>
+                                <span>(-) Expense</span>
+                            </button>
                         </div>
                         <div class="sm:col-span-4 relative">
                             <span class="absolute left-3 top-2.5 text-xs text-slate-500 font-mono">₹</span>
@@ -204,4 +211,33 @@
     <p class="text-xs text-slate-500">No rules yet.</p>
     {% endif %}
 </div>
+
+<script>
+function toggleNewCategoryType() {
+    const input = document.getElementById('new_is_income_input');
+    const btn = document.getElementById('new_is_income_btn');
+    if (input.value === '1') {
+        input.value = '0';
+        btn.className = 'w-full py-2 px-3 rounded-xl text-xs font-semibold transition border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer';
+        btn.innerHTML = '<i class="fa-solid fa-arrow-down-long text-[10px]"></i> <span>(-) Expense</span>';
+    } else {
+        input.value = '1';
+        btn.className = 'w-full py-2 px-3 rounded-xl text-xs font-semibold transition border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer';
+        btn.innerHTML = '<i class="fa-solid fa-arrow-up-long text-[10px]"></i> <span>(+) Income</span>';
+    }
+}
+
+function toggleCategoryType(btn, inputId) {
+    const input = document.getElementById(inputId);
+    if (input.value === '1') {
+        input.value = '0';
+        btn.className = 'w-full py-1.5 px-2 rounded-lg text-[11px] font-semibold transition border flex items-center justify-center gap-1 cursor-pointer border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20';
+        btn.innerHTML = '<i class="fa-solid fa-arrow-down-long text-[9px]"></i> <span>(-) Expense</span>';
+    } else {
+        input.value = '1';
+        btn.className = 'w-full py-1.5 px-2 rounded-lg text-[11px] font-semibold transition border flex items-center justify-center gap-1 cursor-pointer border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20';
+        btn.innerHTML = '<i class="fa-solid fa-arrow-up-long text-[9px]"></i> <span>(+) Income</span>';
+    }
+}
+</script>
 {% endblock %}
