@@ -63,10 +63,12 @@
 <!-- Envelope Cards Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for cat, budget in budgets.items() %}
+    {% set is_income = (cat|lower == 'income') %}
     {% set actual = report.get(cat, 0) %}
     {% set all_time_actual = all_time_report.get(cat, 0) %}
     {% set percent = (actual / budget * 100) if budget > 0 else 0 %}
     {% set is_over = actual > budget %}
+    {% set is_target_met = actual >= budget %}
 
     <div class="glass-card rounded-2xl p-6 flex flex-col justify-between border border-slate-800 transition hover:-translate-y-0.5 hover:shadow-xl">
         <div>
@@ -74,9 +76,15 @@
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-base font-bold text-white tracking-tight">{{ cat }}</h3>
                 <span class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full font-mono border
-                    {% if is_over %}bg-rose-500/10 text-rose-400 border-rose-500/20
-                    {% elif percent > 85 %}bg-amber-500/10 text-amber-400 border-amber-500/20
-                    {% else %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% endif %}">
+                    {% if is_income %}
+                        {% if is_target_met %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20
+                        {% elif percent >= 50 %}bg-cyan-500/10 text-cyan-400 border-cyan-500/20
+                        {% else %}bg-amber-500/10 text-amber-400 border-amber-500/20{% endif %}
+                    {% else %}
+                        {% if is_over %}bg-rose-500/10 text-rose-400 border-rose-500/20
+                        {% elif percent > 85 %}bg-amber-500/10 text-amber-400 border-amber-500/20
+                        {% else %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% endif %}
+                    {% endif %}">
                     {{ percent|round(1) }}%
                 </span>
             </div>
@@ -84,37 +92,60 @@
             <!-- Modern Progress Bar -->
             <div class="w-full bg-slate-950 rounded-full h-3 overflow-hidden p-0.5 border border-slate-800 mb-4">
                 <div class="h-full rounded-full transition-all duration-500
-                    {% if is_over %}bg-gradient-to-r from-rose-500 to-rose-600
-                    {% elif percent > 85 %}bg-gradient-to-r from-amber-500 to-amber-600
-                    {% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}"
+                    {% if is_income %}
+                        {% if is_target_met %}bg-gradient-to-r from-emerald-500 to-teal-400
+                        {% elif percent >= 50 %}bg-gradient-to-r from-cyan-500 to-blue-500
+                        {% else %}bg-gradient-to-r from-amber-500 to-amber-600{% endif %}
+                    {% else %}
+                        {% if is_over %}bg-gradient-to-r from-rose-500 to-rose-600
+                        {% elif percent > 85 %}bg-gradient-to-r from-amber-500 to-amber-600
+                        {% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}
+                    {% endif %}"
                     style="width: {{ [percent, 100]|min }}%;">
                 </div>
             </div>
 
-            <!-- Spending Breakdown -->
+            <!-- Spending / Income Breakdown -->
             <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+                {% if is_income %}
+                <span>Earned: <strong class="text-emerald-400 font-mono text-sm">₹{{ "{:,.2f}".format(actual) }}</strong></span>
+                <span>Target: <strong class="text-slate-300 font-mono">₹{{ "{:,.2f}".format(budget) }}</strong></span>
+                {% else %}
                 <span>Spent: <strong class="text-white font-mono text-sm">₹{{ "{:,.2f}".format(actual) }}</strong></span>
                 <span>Budget: <strong class="text-slate-300 font-mono">₹{{ "{:,.2f}".format(budget) }}</strong></span>
+                {% endif %}
             </div>
 
             {% if not is_all_time %}
             <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2 bg-slate-950/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                <span>Statement Total: <strong class="text-slate-200 font-mono">₹{{ "{:,.2f}".format(all_time_actual) }}</strong></span>
+                <span>{% if is_income %}Total Earned:{% else %}Statement Total:{% endif %} <strong class="text-slate-200 font-mono">₹{{ "{:,.2f}".format(all_time_actual) }}</strong></span>
                 <span class="text-slate-500 font-mono text-[10px]">All Time</span>
             </div>
             {% endif %}
         </div>
 
-        <!-- Overspent / Remaining Alert Pill -->
+        <!-- Overspent / Target Alert Pill -->
         <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-            {% if is_over %}
-            <span class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-triangle-exclamation text-[11px]"></i> Over by ₹{{ "{:,.2f}".format(actual - budget) }}
-            </span>
+            {% if is_income %}
+                {% if is_target_met %}
+                <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i> Target Met (+₹{{ "{:,.2f}".format(actual - budget) }})
+                </span>
+                {% else %}
+                <span class="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-arrow-trend-up text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} to target
+                </span>
+                {% endif %}
             {% else %}
-            <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
-            </span>
+                {% if is_over %}
+                <span class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-triangle-exclamation text-[11px]"></i> Over by ₹{{ "{:,.2f}".format(actual - budget) }}
+                </span>
+                {% else %}
+                <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check text-[11px]"></i> ₹{{ "{:,.2f}".format(budget - actual) }} remaining
+                </span>
+                {% endif %}
             {% endif %}
             <a href="/transactions?category={{ cat|urlencode }}{% if not is_all_time and current_period %}&period={{ current_period }}{% endif %}"
                class="text-[11px] text-slate-400 hover:text-amber-400 font-semibold transition flex items-center gap-1"
