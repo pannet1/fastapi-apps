@@ -413,3 +413,31 @@ def bulk_insert_parsed_csv(parsed_df: pd.DataFrame) -> Dict[str, Any]:
         return {"added": added, "total": count_after}
     finally:
         conn.close()
+
+
+def rename_category(old_name: str, new_name: str) -> Dict[str, Any]:
+    """Renames a category across all transaction records and category rules in SQLite."""
+    old_clean = old_name.strip()
+    new_clean = new_name.strip()
+    if not old_clean or not new_clean or old_clean.lower() == new_clean.lower():
+        return {"status": "noop", "updated_transactions": 0, "updated_rules": 0}
+    conn = get_connection()
+    try:
+        with conn:
+            cur1 = conn.execute(
+                "UPDATE transactions SET category = ? WHERE category = ?",
+                (new_clean, old_clean),
+            )
+            cur2 = conn.execute(
+                "UPDATE category_rules SET category = ? WHERE category = ?",
+                (new_clean, old_clean),
+            )
+            return {
+                "status": "success",
+                "old_name": old_clean,
+                "new_name": new_clean,
+                "updated_transactions": cur1.rowcount,
+                "updated_rules": cur2.rowcount,
+            }
+    finally:
+        conn.close()

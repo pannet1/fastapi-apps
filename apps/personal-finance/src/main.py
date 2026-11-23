@@ -34,6 +34,7 @@ from pf_agent_service import (
     get_category_rules as agent_get_category_rules,
     get_opening_balance as agent_get_opening_balance,
     get_personal_finance_summary,
+    rename_category as agent_rename_category,
     set_opening_balance as agent_set_opening_balance,
     update_category as agent_update_category,
     update_category_rule as agent_update_category_rule,
@@ -100,6 +101,18 @@ def agent_categories():
         "categories": get_categories(),
         "metadata": get_category_metadata(),
     }
+
+
+class RenameCategoryPayload(BaseModel):
+    old_name: str
+    new_name: str
+
+
+@app.post("/api/agent/categories/rename")
+def api_rename_category(payload: RenameCategoryPayload):
+    """Agent endpoint: Rename an envelope category across budgets, transactions, and rules."""
+    initialize_master()
+    return agent_rename_category(payload.old_name, payload.new_name, CATEGORIES_FILE)
 
 
 @app.get("/api/agent/transactions")
@@ -256,22 +269,60 @@ async def add_category(request: Request):
     form_data = await request.form()
     current_meta = get_category_metadata()
     categories = {}
+    renamed_map = {}
 
-    for key, value in form_data.items():
-        if key.startswith("budget_"):
-            cat_name = key.replace("budget_", "")
-            is_inc_val = form_data.get(f"is_income_{cat_name}")
+    # Check for indexed envelope entries allowing inline renaming
+    indices = set()
+    for key in form_data.keys():
+        if key.startswith("orig_name_"):
+            idx = key.replace("orig_name_", "")
+            indices.add(idx)
+
+    if indices:
+        sorted_indices = sorted(indices, key=lambda x: int(x) if x.isdigit() else x)
+        for idx in sorted_indices:
+            orig = form_data.get(f"orig_name_{idx}")
+            new_name = form_data.get(f"cat_name_{idx}")
+            budget_val = form_data.get(f"budget_{idx}")
+            is_inc_val = form_data.get(f"is_income_{idx}")
+
+            if not orig or not str(orig).strip():
+                continue
+            orig_clean = str(orig).strip()
+            target_name = str(new_name).strip() if (new_name and str(new_name).strip()) else orig_clean
+
             if is_inc_val is not None:
                 is_inc = 1 if str(is_inc_val).strip() in ("1", "+", "income", "true") else 0
-            elif cat_name in current_meta:
-                is_inc = int(current_meta[cat_name].get("is_income", 0))
+            elif orig_clean in current_meta:
+                is_inc = int(current_meta[orig_clean].get("is_income", 0))
             else:
-                is_inc = 1 if cat_name.lower() == "income" else 0
+                is_inc = 1 if target_name.lower() == "income" else 0
 
-            categories[cat_name] = {
-                "budget": float(value) if value else 0.0,
+            budget = float(budget_val) if budget_val else 0.0
+
+            categories[target_name] = {
+                "budget": budget,
                 "is_income": is_inc,
             }
+
+            if orig_clean != target_name:
+                renamed_map[orig_clean] = target_name
+    else:
+        for key, value in form_data.items():
+            if key.startswith("budget_"):
+                cat_name = key.replace("budget_", "")
+                is_inc_val = form_data.get(f"is_income_{cat_name}")
+                if is_inc_val is not None:
+                    is_inc = 1 if str(is_inc_val).strip() in ("1", "+", "income", "true") else 0
+                elif cat_name in current_meta:
+                    is_inc = int(current_meta[cat_name].get("is_income", 0))
+                else:
+                    is_inc = 1 if cat_name.lower() == "income" else 0
+
+                categories[cat_name] = {
+                    "budget": float(value) if value else 0.0,
+                    "is_income": is_inc,
+                }
 
     new_name = form_data.get("new_name")
     new_budget = form_data.get("new_budget")
@@ -283,6 +334,10 @@ async def add_category(request: Request):
             "budget": float(new_budget) if new_budget else 0.0,
             "is_income": is_inc,
         }
+
+    # Propagate category renames to transactions and rules
+    for old_cat, new_cat in renamed_map.items():
+        agent_rename_category(old_cat, new_cat, CATEGORIES_FILE)
 
     with open(CATEGORIES_FILE, "w", encoding="utf-8") as f:
         json.dump(categories, f, indent=2)

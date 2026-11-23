@@ -16,6 +16,7 @@ from pf_database import (
     get_opening_balance as db_get_opening_balance,
     get_transactions_df,
     init_db,
+    rename_category as db_rename_category,
     set_opening_balance as db_set_opening_balance,
     update_category_rule as db_update_category_rule,
     update_transaction_category,
@@ -113,6 +114,46 @@ def is_income_category(category: Optional[str], categories_file: Optional[str] =
         return True
     income_set = get_income_categories(categories_file or "categories.json")
     return cat_clean in income_set
+
+
+def rename_category(old_name: str, new_name: str, categories_file: Optional[str] = None) -> Dict[str, Any]:
+    """Renames an envelope in categories.json and updates all associated transactions and rules."""
+    old_clean = old_name.strip()
+    new_clean = new_name.strip()
+    if not old_clean or not new_clean:
+        return {"status": "error", "message": "Invalid category names"}
+
+    # 1. Update SQLite transactions and rules
+    db_res = db_rename_category(old_clean, new_clean)
+
+    # 2. Update categories.json
+    path = resolve_file(categories_file, "categories.json")
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                new_data = {}
+                found = False
+                for k, v in data.items():
+                    if k.strip().lower() == old_clean.lower():
+                        new_data[new_clean] = v
+                        found = True
+                    else:
+                        new_data[k] = v
+                if found:
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump(new_data, f, indent=2)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "old_name": old_clean,
+        "new_name": new_clean,
+        "updated_transactions": db_res.get("updated_transactions", 0),
+        "updated_rules": db_res.get("updated_rules", 0),
+    }
 
 
 def get_personal_finance_summary(
