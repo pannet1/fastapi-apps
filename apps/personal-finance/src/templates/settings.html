@@ -20,15 +20,22 @@
 
             <form action="/add-category" method="post" class="space-y-4">
                 <div id="category-list" class="space-y-3">
-                    {% for name, budget in categories.items() %}
+                    {% for name, meta in category_meta.items() %}
                     <div class="flex items-center gap-3 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 focus-within:border-amber-500 transition">
-                        <span class="w-1/2 text-xs font-semibold text-slate-200 px-2 truncate">{{ name }}</span>
-                        <div class="relative w-1/2">
+                        <span class="w-2/5 text-xs font-semibold text-slate-200 px-2 truncate">{{ name }}</span>
+                        <div class="w-1/4">
+                            <select name="is_income_{{ name }}"
+                                    class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-white focus:outline-none focus:border-amber-500">
+                                <option value="0" {% if meta.is_income == 0 %}selected{% endif %}>(-) Expense</option>
+                                <option value="1" {% if meta.is_income == 1 %}selected{% endif %}>(+) Income</option>
+                            </select>
+                        </div>
+                        <div class="relative w-1/3">
                             <span class="absolute left-3 top-2 text-xs text-slate-500 font-mono">₹</span>
                             <input type="number"
                                    step="0.01"
                                    name="budget_{{ name }}"
-                                   value="{{ budget }}"
+                                   value="{{ meta.budget }}"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-7 pr-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500">
                         </div>
                     </div>
@@ -39,16 +46,28 @@
                     <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
                         <i class="fa-solid fa-plus text-amber-400"></i> Add New Category Envelope
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                        <input type="text"
-                               name="new_name"
-                               placeholder="Category Name (e.g. Groceries)"
-                               class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
-                        <input type="number"
-                               step="0.01"
-                               name="new_budget"
-                               placeholder="Monthly Budget (₹)"
-                               class="bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-amber-500">
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-4">
+                        <div class="sm:col-span-5">
+                            <input type="text"
+                                   name="new_name"
+                                   placeholder="Category Name (e.g. Consulting)"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div class="sm:col-span-3">
+                            <select name="new_is_income"
+                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-amber-500">
+                                <option value="0">(-) Expense</option>
+                                <option value="1">(+) Income</option>
+                            </select>
+                        </div>
+                        <div class="sm:col-span-4 relative">
+                            <span class="absolute left-3 top-2.5 text-xs text-slate-500 font-mono">₹</span>
+                            <input type="number"
+                                   step="0.01"
+                                   name="new_budget"
+                                   placeholder="Monthly Target / Budget"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-7 pr-3 py-2 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-amber-500">
+                        </div>
                     </div>
                 </div>
 

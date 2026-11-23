@@ -28,6 +28,9 @@ from pf_agent_service import (
     apply_category_rules as agent_apply_category_rules,
     delete_category_rule as agent_delete_category_rule,
     get_categories as agent_get_categories,
+    get_category_metadata as agent_get_category_metadata,
+    get_income_categories as agent_get_income_categories,
+    is_income_category as agent_is_income_category,
     get_category_rules as agent_get_category_rules,
     get_opening_balance as agent_get_opening_balance,
     get_personal_finance_summary,
@@ -47,6 +50,18 @@ templates = Jinja2Templates(directory="templates")
 
 def get_categories():
     return agent_get_categories(CATEGORIES_FILE)
+
+
+def get_category_metadata():
+    return agent_get_category_metadata(CATEGORIES_FILE)
+
+
+def get_income_categories():
+    return agent_get_income_categories(CATEGORIES_FILE)
+
+
+def is_income_category(cat: Optional[str]):
+    return agent_is_income_category(cat, CATEGORIES_FILE)
 
 
 def initialize_master():
@@ -81,7 +96,10 @@ def agent_summary(
 @app.get("/api/agent/categories")
 def agent_categories():
     """Agent endpoint: Returns all envelope categories and budgeted targets."""
-    return {"categories": get_categories()}
+    return {
+        "categories": get_categories(),
+        "metadata": get_category_metadata(),
+    }
 
 
 @app.get("/api/agent/transactions")
@@ -217,31 +235,57 @@ def api_set_opening_balance(payload: OpeningBalanceInput):
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     categories = get_categories()
+    category_meta = get_category_metadata()
     initialize_master()
     opening_balance = agent_get_opening_balance(MASTER_FILE)
     rules = agent_get_category_rules(MASTER_FILE)
     return templates.TemplateResponse(
-        "settings.html", {"request": request, "categories": categories, "opening_balance": opening_balance, "rules": rules}
+        "settings.html",
+        {
+            "request": request,
+            "categories": categories,
+            "category_meta": category_meta,
+            "opening_balance": opening_balance,
+            "rules": rules,
+        },
     )
 
 
 @app.post("/add-category")
 async def add_category(request: Request):
     form_data = await request.form()
+    current_meta = get_category_metadata()
     categories = {}
 
     for key, value in form_data.items():
         if key.startswith("budget_"):
             cat_name = key.replace("budget_", "")
-            categories[cat_name] = float(value) if value else 0.0
+            is_inc_val = form_data.get(f"is_income_{cat_name}")
+            if is_inc_val is not None:
+                is_inc = 1 if str(is_inc_val).strip() in ("1", "+", "income", "true") else 0
+            elif cat_name in current_meta:
+                is_inc = int(current_meta[cat_name].get("is_income", 0))
+            else:
+                is_inc = 1 if cat_name.lower() == "income" else 0
+
+            categories[cat_name] = {
+                "budget": float(value) if value else 0.0,
+                "is_income": is_inc,
+            }
 
     new_name = form_data.get("new_name")
     new_budget = form_data.get("new_budget")
+    new_is_income = form_data.get("new_is_income", "0")
     if new_name and str(new_name).strip():
-        categories[str(new_name).strip()] = float(new_budget) if new_budget else 0.0
+        clean_name = str(new_name).strip()
+        is_inc = 1 if str(new_is_income).strip() in ("1", "+", "income", "true") else 0
+        categories[clean_name] = {
+            "budget": float(new_budget) if new_budget else 0.0,
+            "is_income": is_inc,
+        }
 
     with open(CATEGORIES_FILE, "w", encoding="utf-8") as f:
-        json.dump(categories, f)
+        json.dump(categories, f, indent=2)
 
     return RedirectResponse(url="/settings", status_code=303)
 
@@ -438,7 +482,8 @@ async def view_transactions(
     # Compute net spent / received on the filtered subset
     debit_sum = pd.to_numeric(filtered_df["Debit"], errors="coerce").fillna(0).sum()
     credit_sum = pd.to_numeric(filtered_df["Credit"], errors="coerce").fillna(0).sum()
-    if category and str(category).strip().lower() == "income":
+    is_current_income = is_income_category(category) if category else False
+    if is_current_income:
         net_spent = credit_sum - debit_sum
     else:
         net_spent = debit_sum - credit_sum
@@ -466,6 +511,8 @@ async def view_transactions(
             "request": request,
             "transactions": paginated_df.to_dict(orient="records"),
             "categories": list(categories.keys()),
+            "income_categories": list(get_income_categories()),
+            "is_current_income": is_current_income,
             "page": page,
             "total_pages": max(1, (total_rows // size) + (1 if total_rows % size != 0 else 0)),
             "start_index": start,
@@ -541,7 +588,7 @@ async def index(
     all_time_report = {}
     for cat in budgets.keys():
         cat_all = df[df["Category"].astype(str).str.strip().str.lower() == str(cat).strip().lower()]
-        if cat.lower() == "income":
+        if is_income_category(cat):
             all_time_report[cat] = float(cat_all["Credit"].sum() - cat_all["Debit"].sum())
         else:
             all_time_report[cat] = float(cat_all["Debit"].sum())
@@ -660,7 +707,7 @@ async def index(
     for cat in budgets.keys():
         cat_df = active_df[active_df["Category"].astype(str).str.strip().str.lower() == str(cat).strip().lower()]
 
-        if cat.lower() == "income":
+        if is_income_category(cat):
             # For Income envelope, net earned = Inflow Credit - Outflow Debit
             actual_report[cat] = float(cat_df["Credit"].sum() - cat_df["Debit"].sum())
         else:
@@ -689,6 +736,7 @@ async def index(
             "report": actual_report,
             "all_time_report": all_time_report,
             "budgets": budgets,
+            "income_categories": list(get_income_categories()),
             "current_date": current_date,
             "current_month": current_month,
             "current_year": current_year,

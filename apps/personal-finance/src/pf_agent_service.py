@@ -39,15 +39,80 @@ def resolve_file(file_path: str, default_name: str) -> Path:
     return cand.resolve()
 
 
-def get_categories(categories_file: str) -> Dict[str, float]:
+def load_raw_categories(categories_file: str) -> Dict[str, Any]:
     path = resolve_file(categories_file, "categories.json")
     if not path.exists():
-        return {"Uncategorized": 0.0}
+        return {"Uncategorized": {"budget": 0.0, "is_income": 0}}
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+            return {"Uncategorized": {"budget": 0.0, "is_income": 0}}
     except Exception:
-        return {"Uncategorized": 0.0}
+        return {"Uncategorized": {"budget": 0.0, "is_income": 0}}
+
+
+def get_categories(categories_file: str) -> Dict[str, float]:
+    """Returns category budgets as Dict[str, float] for backwards compatibility."""
+    raw = load_raw_categories(categories_file)
+    res = {}
+    for k, v in raw.items():
+        if isinstance(v, dict):
+            res[k] = float(v.get("budget", 0.0))
+        else:
+            try:
+                res[k] = float(v)
+            except (ValueError, TypeError):
+                res[k] = 0.0
+    return res
+
+
+def get_category_metadata(categories_file: str) -> Dict[str, Dict[str, Any]]:
+    """Returns envelope metadata with single-bit is_income classification (1=income/positive, 0=expense/negative)."""
+    raw = load_raw_categories(categories_file)
+    res = {}
+    for k, v in raw.items():
+        if isinstance(v, dict):
+            budget = float(v.get("budget", 0.0))
+            is_inc = int(v.get("is_income", 1 if str(k).strip().lower() == "income" else 0))
+            res[k] = {
+                "budget": budget,
+                "is_income": 1 if is_inc else 0,
+            }
+        else:
+            try:
+                budget = float(v)
+            except (ValueError, TypeError):
+                budget = 0.0
+            res[k] = {
+                "budget": budget,
+                "is_income": 1 if str(k).strip().lower() == "income" else 0,
+            }
+    return res
+
+
+def get_income_categories(categories_file: str) -> Set[str]:
+    """Returns lowercase set of category names classified as positive/income."""
+    meta = get_category_metadata(categories_file)
+    res = set()
+    for cat, data in meta.items():
+        if data.get("is_income") == 1 or str(cat).strip().lower() == "income":
+            res.add(str(cat).strip().lower())
+    if not res:
+        res.add("income")
+    return res
+
+
+def is_income_category(category: Optional[str], categories_file: Optional[str] = None) -> bool:
+    """Checks whether a category is positive/income (single-bit classification)."""
+    if not category:
+        return False
+    cat_clean = str(category).strip().lower()
+    if cat_clean == "income":
+        return True
+    income_set = get_income_categories(categories_file or "categories.json")
+    return cat_clean in income_set
 
 
 def get_personal_finance_summary(
@@ -144,7 +209,7 @@ def get_personal_finance_summary(
         cat_df = month_df[month_df["Category"].astype(str).str.strip().str.lower() == str(cat).strip().lower()]
         budget_val = float(budgets.get(cat, 0.0))
 
-        if cat.lower() == "income":
+        if is_income_category(cat, categories_file):
             # Net Income = Credit - Debit
             actual = float(cat_df["Credit"].sum() - cat_df["Debit"].sum())
             total_income += actual
@@ -222,13 +287,15 @@ def get_personal_finance_summary(
     ]
 
     # All-time totals
+    income_cats = get_income_categories(categories_file)
+    is_inc_mask = df["Category"].astype(str).str.strip().str.lower().isin(income_cats)
     all_income = float(
-        df[df["Category"].astype(str).str.lower() == "income"]["Credit"].fillna(0).sum()
-        - df[df["Category"].astype(str).str.lower() == "income"]["Debit"].fillna(0).sum()
+        df[is_inc_mask]["Credit"].fillna(0).sum()
+        - df[is_inc_mask]["Debit"].fillna(0).sum()
     )
     all_expenses = float(
-        df[df["Category"].astype(str).str.lower() != "income"]["Debit"].fillna(0).sum()
-        - df[df["Category"].astype(str).str.lower() != "income"]["Credit"].fillna(0).sum()
+        df[~is_inc_mask]["Debit"].fillna(0).sum()
+        - df[~is_inc_mask]["Credit"].fillna(0).sum()
     )
 
     total_credits_all = float(pd.to_numeric(df["Credit"], errors="coerce").fillna(0).sum())

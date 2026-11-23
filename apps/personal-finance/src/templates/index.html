@@ -63,7 +63,7 @@
 <!-- Envelope Cards Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for cat, budget in budgets.items() %}
-    {% set is_income = (cat|lower == 'income') %}
+    {% set is_income = (cat|lower in income_categories or cat|lower == 'income') %}
     {% set actual = report.get(cat, 0) %}
     {% set all_time_actual = all_time_report.get(cat, 0) %}
     {% set percent = (actual / budget * 100) if budget > 0 else 0 %}

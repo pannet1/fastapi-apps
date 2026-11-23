@@ -90,7 +90,7 @@
             <span id="tx-total-matched" class="text-slate-400 font-mono">({{ total_rows }} matched)</span>
         </div>
         <div class="flex items-center gap-4">
-            <span class="text-slate-400">{% if current_category and current_category|lower == 'income' %}Total Net Income:{% else %}Total Net Spending:{% endif %} <strong class="{% if filter_net < 0 or (current_category and current_category|lower == 'income') %}text-emerald-400{% else %}text-white{% endif %} font-mono text-sm font-bold">₹{{ "{:,.2f}".format(filter_net) }}</strong></span>
+            <span class="text-slate-400">{% if is_current_income %}Total Net Income:{% else %}Total Net Spending:{% endif %} <strong class="{% if filter_net < 0 or is_current_income %}text-emerald-400{% else %}text-white{% endif %} font-mono text-sm font-bold">₹{{ "{:,.2f}".format(filter_net) }}</strong></span>
             <a href="/transactions" class="text-xs text-rose-400 hover:text-rose-300 font-semibold transition">✕ Clear</a>
         </div>
     </div>
