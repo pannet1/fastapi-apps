@@ -57,12 +57,9 @@ The dashboard provides a WCAG AAA compliant, high-contrast visual interface for 
 
 ## 🚀 Quickstart
 
-### 1. Seed Database
-```bash
-python seed.py
-```
+The database starts empty. Tables are created automatically on first start; enter commercial values through the dashboard UI or the API.
 
-### 2. Run API & Dashboard
+### 1. Run API & Dashboard
 ```bash
 uvicorn main:app --port 11174 --reload
 # View dashboard at: http://localhost:11174/dashboard

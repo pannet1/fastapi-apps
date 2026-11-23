@@ -202,6 +202,8 @@ def agent_spec():
             "campaign_performance": {"method": "GET", "path": "/api/campaigns/{slug}/performance", "description": "Check performance and completion rate of a campaign"},
             "campaigns_performance": {"method": "GET", "path": "/api/campaigns/performance", "description": "Summary performance metrics across all campaigns"},
             "create_campaign": {"method": "POST", "path": "/api/campaigns", "description": "Formulate and propose a new commercial campaign"},
+            "update_campaign": {"method": "PUT", "path": "/api/campaigns/{slug}", "description": "Update campaign value, target revenue, name, or rationale"},
+            "update_campaign_target": {"method": "PUT", "path": "/api/campaigns/{slug}/target", "description": "Human override of campaign financial target amount"},
             "agree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/agree", "description": "Human decision gate: agree and activate campaign"},
             "disagree_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/disagree", "description": "Human decision gate: reject campaign"},
             "complete_campaign": {"method": "POST", "path": "/api/campaigns/{slug}/complete", "description": "Mark campaign completed"},
@@ -470,6 +472,78 @@ def create_campaign(camp: CampaignCreate):
     conn.commit()
     conn.close()
     return {"status": "ok", "campaign": camp.dict()}
+
+class CampaignUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    target_revenue: Optional[float] = None
+    status: Optional[str] = None
+    repo: Optional[str] = None
+    module: Optional[str] = None
+    persona_slug: Optional[str] = None
+    rationale: Optional[str] = None
+
+@app.put("/api/campaigns/{slug}", tags=["Campaigns"], summary="Update campaign fields including target value")
+def update_campaign(slug: str, update: CampaignUpdate):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM campaigns WHERE slug = ?", (slug,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Campaign '{slug}' not found")
+    cur = dict(row)
+
+    new_target = update.target_revenue if update.target_revenue is not None else cur["target_revenue"]
+    if new_target is not None and new_target < 0:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Target revenue cannot be negative")
+
+    c.execute("""
+        UPDATE campaigns
+        SET name = ?,
+            start_date = ?,
+            end_date = ?,
+            target_revenue = ?,
+            status = ?,
+            repo = ?,
+            module = ?,
+            persona_slug = ?,
+            rationale = ?
+        WHERE slug = ?
+    """, (
+        update.name if update.name is not None else cur["name"],
+        update.start_date if update.start_date is not None else cur["start_date"],
+        update.end_date if update.end_date is not None else cur["end_date"],
+        new_target,
+        update.status if update.status is not None else cur["status"],
+        update.repo if update.repo is not None else cur.get("repo"),
+        update.module if update.module is not None else cur.get("module"),
+        update.persona_slug if update.persona_slug is not None else cur.get("persona_slug"),
+        update.rationale if update.rationale is not None else cur.get("rationale"),
+        slug
+    ))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "campaign_slug": slug, "target_revenue": new_target}
+
+class CampaignTargetUpdate(BaseModel):
+    target_revenue: float
+
+@app.put("/api/campaigns/{slug}/target", tags=["Campaigns"], summary="Human override of an AI campaign's financial target")
+def update_campaign_target(slug: str, update: CampaignTargetUpdate):
+    if update.target_revenue < 0:
+        raise HTTPException(status_code=400, detail="Target revenue cannot be negative")
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("UPDATE campaigns SET target_revenue = ? WHERE slug = ?", (update.target_revenue, slug))
+    if c.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Campaign '{slug}' not found")
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "campaign_slug": slug, "target_revenue": update.target_revenue}
 
 @app.post("/api/campaigns/{slug}/agree")
 def agree_campaign(slug: str):
@@ -843,9 +917,12 @@ def dashboard(request: Request = None):
           <div class="prop-action">{rat}</div>
           <div class="prop-footer">
             <div class="prop-meta">
-              <span>Financial Target: <b style="color:var(--accent-ink)">{target_disp}</b></span>
+              <span onclick="openEditCampaign(this)" data-slug="{c_slug}" data-target="{camp.get('target_revenue') or 0}" data-name="{c_name}" data-rationale="{rat}" data-start="{camp.get('start_date') or ''}" data-end="{camp.get('end_date') or ''}" style="cursor:pointer;" title="Click to edit campaign target">
+                Financial Target: <b style="color:var(--accent-ink)">{target_disp}</b> <span style="font-size:11px;color:var(--muted)">✎</span>
+              </span>
             </div>
             {btn_markup}
+            <button class="btn-disagree" onclick="openEditCampaign(this)" data-slug="{c_slug}" data-target="{camp.get('target_revenue') or 0}" data-name="{c_name}" data-rationale="{rat}" data-start="{camp.get('start_date') or ''}" data-end="{camp.get('end_date') or ''}">✎ Edit Value</button>
           </div>
         </div>
         """
@@ -859,12 +936,94 @@ def dashboard(request: Request = None):
           <h2>Campaigns &amp; Decision Gate</h2>
           <span class="note">AI-proposed commercial campaigns mapped to financial goals. Humans accept or reject proposals by altering status.</span>
         </div>
-        <div style="font-size:12.5px;color:var(--muted)">
-          <b style="color:var(--warn)">{num_proposed}</b> proposed · <b style="color:var(--accent-ink)">{num_active}</b> active · <b style="color:#16a34a">{num_completed}</b> completed in flight
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:12.5px;color:var(--muted)">
+            <b style="color:var(--warn)">{num_proposed}</b> proposed · <b style="color:var(--accent-ink)">{num_active}</b> active · <b style="color:#16a34a">{num_completed}</b> completed in flight
+          </div>
+          <button class="btn-agree" onclick="toggleAddCampaign()">+ Add Campaign</button>
+        </div>
+      </div>
+
+      <div id="add-campaign-box" class="glass-card p-5 mb-6 rounded-2xl border border-slate-800 shadow-xl" style="display:none;">
+        <div class="text-sm font-bold text-white mb-3">Enter a new campaign manually</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Slug</label>
+            <input id="new-campaign-slug" type="text" placeholder="my_campaign" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Name</label>
+            <input id="new-campaign-name" type="text" placeholder="Campaign name" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Start Date</label>
+            <input id="new-campaign-start" type="text" value="{today}" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">End Date</label>
+            <input id="new-campaign-end" type="text" value="{today}" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Target Amount (₹)</label>
+            <input id="new-campaign-target" type="number" min="0" step="1" placeholder="3200" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Persona Slug (optional)</label>
+            <input id="new-campaign-persona" type="text" placeholder="home_automation_specialist" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Focus / Rationale (optional)</label>
+            <input id="new-campaign-rationale" type="text" placeholder="What this drive is for" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500" />
+          </div>
+          <div class="flex justify-end gap-2">
+            <button class="btn-agree" onclick="submitNewCampaign()">Save Campaign</button>
+            <button class="btn-disagree" onclick="toggleAddCampaign()">Cancel</button>
+          </div>
         </div>
       </div>
 
       <div class="prop-grid">{camp_cards_html}</div>
+
+      <!-- Edit Campaign Modal -->
+      <div id="edit-campaign-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;">
+        <div class="glass-card p-6 rounded-2xl border border-slate-800 shadow-2xl" style="width:90%;max-width:480px;">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-pen-to-square text-cyan-400"></i> Edit Campaign Value &amp; Target
+            </div>
+            <button type="button" class="text-slate-400 hover:text-white text-lg leading-none" onclick="closeEditCampaign()">&times;</button>
+          </div>
+          <input type="hidden" id="edit-campaign-slug" />
+          <div class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Target Revenue Value (₹)</label>
+              <input id="edit-campaign-amount" type="number" min="0" step="1" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-cyan-300 focus:outline-none focus:border-cyan-500 font-mono font-bold" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Campaign Name</label>
+              <input id="edit-campaign-name" type="text" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Start Date</label>
+                <input id="edit-campaign-start" type="text" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-400 mb-1">End Date</label>
+                <input id="edit-campaign-end" type="text" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Focus / Rationale</label>
+              <textarea id="edit-campaign-rationale" rows="2" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 focus:outline-none focus:border-cyan-500"></textarea>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2 mt-5">
+            <button class="btn-disagree" onclick="closeEditCampaign()">Cancel</button>
+            <button class="btn-agree" onclick="saveCampaign()">Save Value</button>
+          </div>
+        </div>
+      </div>
     </section>
     """
 
@@ -1194,6 +1353,83 @@ async function completeCampaign(slug) {{
   if (r.ok) {{
     location.hash = '#campaigns';
     location.reload();
+  }}
+}}
+function openEditCampaign(btn) {{
+  document.getElementById('edit-campaign-slug').value = btn.dataset.slug;
+  document.getElementById('edit-campaign-amount').value = btn.dataset.target || 0;
+  document.getElementById('edit-campaign-name').value = btn.dataset.name || '';
+  document.getElementById('edit-campaign-rationale').value = btn.dataset.rationale || '';
+  document.getElementById('edit-campaign-start').value = btn.dataset.start || '';
+  document.getElementById('edit-campaign-end').value = btn.dataset.end || '';
+  document.getElementById('edit-campaign-modal').style.display = 'flex';
+}}
+function closeEditCampaign() {{
+  document.getElementById('edit-campaign-modal').style.display = 'none';
+}}
+const openEditCampaignTarget = openEditCampaign;
+const closeEditCampaignTarget = closeEditCampaign;
+
+async function saveCampaign() {{
+  const slug = document.getElementById('edit-campaign-slug').value;
+  const amount = Number(document.getElementById('edit-campaign-amount').value);
+  const name = document.getElementById('edit-campaign-name').value.trim();
+  const rationale = document.getElementById('edit-campaign-rationale').value.trim();
+  const start_date = document.getElementById('edit-campaign-start').value.trim();
+  const end_date = document.getElementById('edit-campaign-end').value.trim();
+
+  if (!Number.isFinite(amount) || amount < 0) {{
+    alert('Enter a valid target amount.');
+    return;
+  }}
+  const payload = {{ target_revenue: amount }};
+  if (name) payload.name = name;
+  if (rationale) payload.rationale = rationale;
+  if (start_date) payload.start_date = start_date;
+  if (end_date) payload.end_date = end_date;
+
+  const r = await fetch(API_BASE + '/api/campaigns/' + encodeURIComponent(slug), {{
+    method: 'PUT',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify(payload)
+  }});
+  if (r.ok) {{
+    location.hash = '#campaigns';
+    location.reload();
+  }} else {{
+    alert('Could not save campaign value.');
+  }}
+}}
+const saveCampaignTarget = saveCampaign;
+
+function toggleAddCampaign() {{
+  const el = document.getElementById('add-campaign-box');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}}
+async function submitNewCampaign() {{
+  const body = {{
+    slug: document.getElementById('new-campaign-slug').value.trim(),
+    name: document.getElementById('new-campaign-name').value.trim(),
+    start_date: document.getElementById('new-campaign-start').value.trim(),
+    end_date: document.getElementById('new-campaign-end').value.trim(),
+    target_revenue: Number(document.getElementById('new-campaign-target').value),
+    persona_slug: document.getElementById('new-campaign-persona').value.trim() || null,
+    rationale: document.getElementById('new-campaign-rationale').value.trim() || null
+  }};
+  if (!body.slug || !body.name || !Number.isFinite(body.target_revenue)) {{
+    alert('Slug, name and target amount are required.');
+    return;
+  }}
+  const r = await fetch(API_BASE + '/api/campaigns', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify(body)
+  }});
+  if (r.ok) {{
+    location.hash = '#campaigns';
+    location.reload();
+  }} else {{
+    alert('Could not create campaign.');
   }}
 }}
 
