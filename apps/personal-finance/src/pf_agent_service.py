@@ -180,11 +180,6 @@ def get_personal_finance_summary(
                     "over_by": round(actual - budget_val if budget_val > 0 else actual, 2),
                 })
 
-    # Cashflow aggregates come from the ledger columns, not from envelope categories.
-    # Uncategorized credits must count as income; otherwise they vanish from income
-    # while their debits still inflate expenses.
-    total_income = round(float(month_df["Credit"].sum()), 2)
-    total_expenses = round(float(month_df["Debit"].sum()), 2)
     net_savings = round(total_income - total_expenses, 2)
     savings_rate = round((net_savings / total_income * 100), 1) if total_income > 0 else 0.0
 
