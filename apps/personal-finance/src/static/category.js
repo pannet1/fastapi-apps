@@ -112,34 +112,7 @@ async function updateCat(index, value, selectEl) {
         const data = await response.json().catch(() => ({}));
 
         if (response.ok && data.status === "success") {
-            const updatedCount = data.updated_count || 1;
-            const vendorMsg = data.vendor ? ` matching "${data.vendor}"` : "";
-            showToast(`Allocated to ${value} (${updatedCount} transaction${updatedCount > 1 ? "s" : ""}${vendorMsg})`);
-
-            // If other rows on the current page were updated forward and should also disappear
-            if (Array.isArray(data.updated_indices) && data.updated_indices.length > 1) {
-                let siblingRemovedCount = 0;
-                data.updated_indices.forEach(idx => {
-                    if (idx !== index) {
-                        const siblingRow = document.getElementById("tx-row-" + idx);
-                        if (siblingRow) {
-                            if (shouldDisappear) {
-                                removeTxRow(siblingRow);
-                                siblingRemovedCount++;
-                            } else {
-                                const sel = siblingRow.querySelector("select");
-                                if (sel) {
-                                    sel.value = value;
-                                    sel.dataset.currentCat = value;
-                                }
-                            }
-                        }
-                    }
-                });
-                if (siblingRemovedCount > 0) {
-                    updateTxCounters(siblingRemovedCount);
-                }
-            }
+            showToast(`Allocated to ${value}`);
         } else {
             showToast(data.message || "Error updating category.", "error");
             setTimeout(() => location.reload(), 1500);

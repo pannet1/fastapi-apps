@@ -827,5 +827,5 @@ async def upload_csv(file: UploadFile = File(...)):
 
 @app.post("/update-category")
 async def update_category_form(row_index: int = Form(...), category: str = Form(...), amount: Optional[float] = Form(None)):
-    res = update_transaction_category(row_index=row_index, category=category, forward=True, amount=amount)
+    res = update_transaction_category(row_index=row_index, category=category, forward=False, amount=amount)
     return res

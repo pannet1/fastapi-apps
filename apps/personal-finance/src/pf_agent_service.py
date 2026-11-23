@@ -331,10 +331,10 @@ def update_category(
     master_file: str,
     row_index: int,
     category: str,
-    forward: bool = True,
+    forward: bool = False,
     amount: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Updates category for a transaction in SQLite, supporting forward-matching."""
+    """Updates category for a transaction in SQLite."""
     init_db(master_file)
     return update_transaction_category(row_index=row_index, category=category, forward=forward, amount=amount)
 

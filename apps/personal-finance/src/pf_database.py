@@ -289,10 +289,10 @@ def get_transactions_df(conn: Optional[sqlite3.Connection] = None) -> pd.DataFra
 def update_transaction_category(
     row_index: int,
     category: str,
-    forward: bool = True,
+    forward: bool = False,
     amount: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Updates category for a transaction in SQLite, supporting forward-matching."""
+    """Updates category for a single transaction in SQLite."""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -309,81 +309,23 @@ def update_transaction_category(
 
         target_id = target["id"]
         target_particulars = target["particulars"]
-        target_date_str = target["tran_date"]
-        target_debit = float(target["debit"]) if target["debit"] is not None else 0.0
-        target_credit = float(target["credit"]) if target["credit"] is not None else 0.0
-        target_amt = amount if amount is not None else (target_debit if target_debit else target_credit)
-
-        if not forward:
-            with conn:
-                conn.execute("UPDATE transactions SET category = ? WHERE id = ?", (category, target_id))
-            return {
-                "status": "success",
-                "updated_count": 1,
-                "updated_indices": [target_id],
-                "category": category,
-                "message": f"Updated transaction #{target_id} to {category}",
-            }
 
         def _extract_vendor(parts_str):
             parts = str(parts_str).split("/")
             return parts[3].strip() if len(parts) > 3 else str(parts_str).strip()
 
         target_vendor = _extract_vendor(target_particulars)
-        target_dt = pd.to_datetime(target_date_str, dayfirst=True, errors="coerce")
 
-        cur.execute(
-            "SELECT id, tran_date, particulars, debit, credit FROM transactions WHERE particulars LIKE ?",
-            (f"%{target_vendor}%",),
-        )
-        candidates = cur.fetchall()
-
-        # Determine whether this vendor is ambiguous (multiple distinct amounts).
-        # If so, an explicitly provided amount narrows the match to that amount.
-        distinct_amounts = set()
-        for cand in candidates:
-            c_debit = float(cand["debit"]) if cand["debit"] is not None else 0.0
-            c_credit = float(cand["credit"]) if cand["credit"] is not None else 0.0
-            distinct_amounts.add(round(c_debit if c_debit else c_credit, 2))
-        amount_filter_active = amount is not None and len(distinct_amounts) > 1
-
-        matched_ids = []
-        for cand in candidates:
-            cand_debit = float(cand["debit"]) if cand["debit"] is not None else 0.0
-            cand_credit = float(cand["credit"]) if cand["credit"] is not None else 0.0
-            cand_amt = round(cand_debit if cand_debit else cand_credit, 2)
-
-            if amount_filter_active:
-                if round(float(amount), 2) != cand_amt:
-                    continue
-                # Amount-specific rule applies to all matching transactions (past + future)
-                matched_ids.append(cand["id"])
-                continue
-
-            cand_dt = pd.to_datetime(cand["tran_date"], dayfirst=True, errors="coerce")
-            if pd.notna(target_dt) and pd.notna(cand_dt):
-                if cand_dt >= target_dt:
-                    matched_ids.append(cand["id"])
-            elif cand["id"] == target_id:
-                matched_ids.append(cand["id"])
-
-        if not matched_ids:
-            matched_ids = [target_id]
-
-        placeholders = ",".join("?" for _ in matched_ids)
         with conn:
-            conn.execute(
-                f"UPDATE transactions SET category = ? WHERE id IN ({placeholders})",
-                [category] + matched_ids,
-            )
+            conn.execute("UPDATE transactions SET category = ? WHERE id = ?", (category, target_id))
 
         return {
             "status": "success",
-            "updated_count": len(matched_ids),
-            "updated_indices": matched_ids,
+            "updated_count": 1,
+            "updated_indices": [target_id],
             "vendor": target_vendor,
             "category": category,
-            "message": f"Updated {len(matched_ids)} transactions matching vendor '{target_vendor}' forward from {target_date_str}",
+            "message": f"Updated transaction #{target_id} to {category}",
         }
     finally:
         conn.close()

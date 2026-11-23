@@ -171,20 +171,21 @@ def test_personal_finance_category_update_and_dom_elements():
     assert db_path.exists()
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute("SELECT category FROM transactions WHERE id = 1")
+    cur.execute("SELECT id, category FROM transactions ORDER BY id ASC LIMIT 1")
     row = cur.fetchone()
-    orig_cat = row[0] if row else "Uncategorized"
+    test_id = row[0] if row else 1
+    orig_cat = row[1] if row else "Uncategorized"
     conn.close()
     try:
-        res = client.post("/personal-finance/update-category", data={"row_index": 1, "category": "TestingTemp"})
+        res = client.post("/personal-finance/update-category", data={"row_index": test_id, "category": "TestingTemp"})
         assert res.status_code == 200
         data = res.json()
         assert data["status"] == "success"
         assert "updated_count" in data
         assert "updated_indices" in data
         assert isinstance(data["updated_indices"], list)
-        assert 1 in data["updated_indices"]
+        assert test_id in data["updated_indices"]
         assert "vendor" in data
     finally:
-        client.post("/personal-finance/update-category", data={"row_index": 1, "category": orig_cat})
+        client.post("/personal-finance/update-category", data={"row_index": test_id, "category": orig_cat})
 
