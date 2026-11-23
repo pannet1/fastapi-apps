@@ -73,31 +73,23 @@ function checkEmptyTxTable() {
 }
 
 async function updateCat(index, value, selectEl) {
-    const amount = selectEl ? selectEl.dataset.amount : null;
-    const rowEl = selectEl ? selectEl.closest("tr") : document.getElementById("tx-row-" + index);
-    const prevCat = selectEl ? (selectEl.dataset.currentCat || "") : (rowEl ? rowEl.dataset.category : "");
-    const urlParams = new URLSearchParams(window.location.search);
-    const filterCat = urlParams.get("category");
-
-    // "once uncategorized is allocated to a proper category envelope, it should immediately dissappear from the list"
-    const isAllocatingUncategorized = (prevCat === "Uncategorized" || (rowEl && rowEl.dataset.category === "Uncategorized")) && (value !== "Uncategorized");
-    const isLeavingFilterCategory = Boolean(filterCat && filterCat.toLowerCase() !== value.toLowerCase());
-    const shouldDisappear = isAllocatingUncategorized || isLeavingFilterCategory;
-
-    // Optimistically remove row from view immediately without full page reload
-    if (shouldDisappear && rowEl) {
-        removeTxRow(rowEl);
-        updateTxCounters(1);
-    } else if (selectEl) {
+    if (selectEl) {
         selectEl.dataset.currentCat = value;
+    }
+
+    // Reveal Rule button for this transaction if allocated to a category
+    const ruleCatInput = document.getElementById("rule-cat-" + index);
+    if (ruleCatInput) {
+        ruleCatInput.value = value;
+    }
+    const ruleForm = document.getElementById("rule-form-" + index);
+    if (ruleForm && value !== "Uncategorized") {
+        ruleForm.style.display = "inline";
     }
 
     let formData = new FormData();
     formData.append("row_index", index);
     formData.append("category", value);
-    if (amount !== undefined && amount !== null && amount !== "") {
-        formData.append("amount", amount);
-    }
 
     const baseUrl = window.location.pathname.includes("/personal-finance") 
         ? "/personal-finance" 
@@ -115,11 +107,9 @@ async function updateCat(index, value, selectEl) {
             showToast(`Allocated to ${value}`);
         } else {
             showToast(data.message || "Error updating category.", "error");
-            setTimeout(() => location.reload(), 1500);
         }
     } catch (err) {
         showToast("Network error: " + err.message, "error");
-        setTimeout(() => location.reload(), 1500);
     }
 }
 
